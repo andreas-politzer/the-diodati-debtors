@@ -3,7 +3,7 @@
 import reflex as rx
 
 from rxconfig import config
-from .ui.theme import global_style, radix_theme, stylesheets
+from .ui.theme import global_style, stylesheets
 from .ui.pages.style_preview import style_preview
 
 
@@ -35,7 +35,6 @@ def index() -> rx.Component:
 
 
 app = rx.App(
-    theme=radix_theme(),
     style=global_style(),
     stylesheets=stylesheets(),
 )

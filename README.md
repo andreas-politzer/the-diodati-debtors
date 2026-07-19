@@ -10,7 +10,12 @@ who haven't returned a book yet.
 
 ## Status
 
-Phase 0 (bootstrap) complete. No feature logic yet — see
+Domain model complete: `User`, `Group`, `GroupMembership`, `Book`,
+`Loan` fully implemented with services and tests; `Post` exists as
+schema only (feed feature deferred). Alembic migration applied.
+`loan_service` and `book_service` are functional with a full test suite
+(12 tests passing) and `scripts/seed_demo.py` populates a representative
+dataset. No UI yet beyond the Phase 1 design-system preview — see
 `Implementation Specification.md` in the project vault for the full
 phased plan and current gate.
 
@@ -30,9 +35,15 @@ cp .env.example .env  # fill in local DB credentials
 reflex run
 ```
 
+To populate demo data (requires `DIODATI_DEBUG=true` in `.env`):
+
+```bash
+python scripts/seed_demo.py
+```
+
 ## Architecture
 
-- `core/` — framework-agnostic configuration
+- `core/` — framework-agnostic configuration, exceptions, time/normalization policy
 - `db/` — SQLAlchemy engine, session, declarative base (schema source of
   truth via SQLAlchemy models + Alembic migrations — no separate
   hand-maintained schema.sql)
@@ -45,5 +56,5 @@ reflex run
 
 ```bash
 ruff check .
-pytest
+pytest tests/unit/ -v
 ```

@@ -7,7 +7,7 @@ exceptions, self-contained transactions, no Reflex import.
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from sqlalchemy import select
 
@@ -41,6 +41,13 @@ class LoanResult:
     @property
     def is_active(self) -> bool:
         return self.return_date is None
+
+    def to_dict(self) -> dict:
+        """Explicit serialization boundary — callers (state/) depend on
+        this method, never on dataclasses.asdict() directly, so the
+        internal representation can change without breaking callers.
+        """
+        return asdict(self)
 
 
 def _to_result(loan: Loan) -> LoanResult:
@@ -83,17 +90,10 @@ def create_loan(
         if book is None:
             raise NotFoundError(f"Book {book_id} does not exist.")
 
-        # Explicit existence check, consistent with the Book check
-        # above — not delegated to the FK constraint, so the caller
-        # gets a clear domain exception instead of an IntegrityError.
         borrower = session.get(User, borrower_id)
         if borrower is None:
             raise NotFoundError(f"User {borrower_id} does not exist.")
 
-        # Business rule enforced here, against current DB state — never
-        # against an already-loaded ORM object (Struktur.md, is_active
-        # note). This check-then-insert is not fully race-proof under
-        # true concurrent writes; acceptable for this project's scale.
         active_loan = session.scalar(
             select(Loan).where(Loan.book_id == book_id, Loan.return_date.is_(None))
         )
@@ -110,21 +110,16 @@ def create_loan(
             return_date=None,
         )
         session.add(loan)
-        session.flush()  # populate loan.id before the session closes
+        session.flush()
         return _to_result(loan)
 
 
 def return_loan(loan_id: int, return_date: dt.date | None = None) -> LoanResult:
     """Mark a loan as returned.
 
-    `return_date` defaults to today (via core.time.today), per the same
-    Date-Source-Policy as `create_loan`.
-
     Raises:
         NotFoundError: if the loan does not exist.
-        LoanAlreadyReturnedError: if the loan already has a return_date
-            — loan history is immutable, this is never silently
-            overwritten.
+        LoanAlreadyReturnedError: if the loan already has a return_date.
         InvalidLoanDatesError: if return_date < loan_date.
     """
     resolved_return_date = return_date or today()
@@ -150,4 +145,40 @@ def return_loan(loan_id: int, return_date: dt.date | None = None) -> LoanResult:
         return _to_result(loan)
 
 
-__all__ = ["LoanResult", "create_loan", "return_loan"]
+def get_active_loan_for_book(book_id: int) -> LoanResult | None:
+    """Return the active loan for a single book, or None if available.
+
+    Read-only lookup — for a single book. Use
+    get_active_loans_for_books() when checking many books at once, to
+    avoid N+1 calls.
+    """
+    with get_session() as session:
+        active_loan = session.scalar(
+            select(Loan).where(Loan.book_id == book_id, Loan.return_date.is_(None))
+        )
+        return _to_result(active_loan) if active_loan is not None else None
+
+
+def get_active_loans_for_books(book_ids: list[int]) -> dict[int, LoanResult]:
+    """Return active loans for a set of books in a single query.
+
+    Used by state/ to avoid an N+1 pattern when rendering a book list
+    with loan status attached. Books with no active loan are simply
+    absent from the returned mapping.
+    """
+    if not book_ids:
+        return {}
+    with get_session() as session:
+        active_loans = session.scalars(
+            select(Loan).where(Loan.book_id.in_(book_ids), Loan.return_date.is_(None))
+        ).all()
+        return {loan.book_id: _to_result(loan) for loan in active_loans}
+
+
+__all__ = [
+    "LoanResult",
+    "create_loan",
+    "return_loan",
+    "get_active_loan_for_book",
+    "get_active_loans_for_books",
+]

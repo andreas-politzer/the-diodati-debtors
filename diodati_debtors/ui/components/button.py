@@ -1,9 +1,10 @@
 """Button primitive.
 
-Design Contract rule: flat, square-ish (max 2px radius), off-black
-background with cream text by default, inverts to the Gruenspan accent
-on hover. No shadows, no gradients, no size variants beyond what's
-needed here in Phase 1.
+Design Contract rule: flat, square-ish (max 2px radius). Both buttons
+share the same resting appearance (off-black background, cream text) —
+the distinction is in the hover colour: primary inverts to Gruenspan,
+warning inverts to Ochsenblut. No shadows, no gradients, no size
+variants beyond what's needed here in Phase 1.
 """
 
 from __future__ import annotations
@@ -41,16 +42,20 @@ def primary_button(text: str, **props) -> rx.Component:
 
 def warning_button(text: str, **props) -> rx.Component:
     """Reserved for genuinely destructive or debt-related actions only
-    (per Design Contract: Ochsenblut is warning-only, never decorative).
+    (e.g. "Mark Overdue"). Same resting appearance as `primary_button`
+    — the warning only reveals itself on hover, via Ochsenblut, per
+    the Design Contract's rule that Ochsenblut is warning-only, never
+    decorative in a resting state.
     """
     return rx.button(
         text,
-        background_color=Color.background,
-        color=Color.warning,
+        background_color=Color.text,
+        color=Color.accent_contrast,
         font_family=Font.system,
         font_size=Type.meta,
         font_weight="600",
-        border=Border.warning,
+        letter_spacing="0.02em",
+        border=Border.hairline,
         border_radius=Radius.max,
         padding_x=Space.md,
         padding_y=Space.sm,

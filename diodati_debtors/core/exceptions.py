@@ -51,6 +51,23 @@ class InvalidBookDataError(BusinessRuleViolation):
     """
 
 
+class InvalidRegistrationDataError(BusinessRuleViolation):
+    """Raised when registration data fails validation (blank fields,
+    invalid email format, password too short).
+    """
+
+
+class EmailAlreadyRegisteredError(BusinessRuleViolation):
+    """Raised when attempting to register with an email already in use."""
+
+
+class InvalidCredentialsError(BusinessRuleViolation):
+    """Raised on login failure. Deliberately generic — never reveals
+    whether the email exists or the password was wrong, to avoid
+    leaking account existence.
+    """
+
+
 __all__ = [
     "DiodatiError",
     "NotFoundError",
@@ -59,4 +76,7 @@ __all__ = [
     "InvalidLoanDatesError",
     "LoanAlreadyReturnedError",
     "InvalidBookDataError",
+    "InvalidRegistrationDataError",
+    "EmailAlreadyRegisteredError",
+    "InvalidCredentialsError",
 ]

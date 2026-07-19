@@ -45,6 +45,12 @@ class LoanAlreadyReturnedError(BusinessRuleViolation):
     """
 
 
+class InvalidBookDataError(BusinessRuleViolation):
+    """Raised when book data fails a business-level validation rule
+    (e.g. a blank title) — distinct from a database NOT NULL failure.
+    """
+
+
 __all__ = [
     "DiodatiError",
     "NotFoundError",
@@ -52,4 +58,5 @@ __all__ = [
     "BookAlreadyOnLoanError",
     "InvalidLoanDatesError",
     "LoanAlreadyReturnedError",
+    "InvalidBookDataError",
 ]

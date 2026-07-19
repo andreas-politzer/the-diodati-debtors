@@ -5,12 +5,10 @@ logic. Service decides whether an action is allowed; State decides
 when to call the service and translates results/errors into UI-facing
 state; UI only renders state and triggers events.
 
-BookView is a typed dataclass, not a plain dict — Reflex needs
-explicit field types to compile things like rx.foreach over a nested
-list (borrower_options) correctly; an untyped list[dict] leaves every
-value as `Any`, which breaks exactly that case. (rx.Base was removed
-in Reflex 0.9.0 — dataclasses are the replacement per the official
-migration guide.)
+Note (per Codex's review, 19.07.): this class covers the "Library"
+bounded context (books, loans). Once auth/groups/posts arrive, split
+into separate State classes rather than growing this one further —
+see Struktur.md.
 """
 
 from __future__ import annotations
@@ -37,6 +35,7 @@ class BookView:
     borrower_id: int | None = None
     borrower_options: list[str] = field(default_factory=list)
 
+
 @dataclass
 class LoanHistoryEntry:
     id: int
@@ -60,9 +59,10 @@ class BookDetailView:
 class LibraryState(rx.State):
     books: list[BookView] = []
     users: list[dict] = []
-    error_message: str = ""
+    user_options: list[str] = []
     detail_book: BookDetailView | None = None
     loan_history: list[LoanHistoryEntry] = []
+    error_message: str = ""
 
     def load_books(self) -> None:
         """Fetch all books plus their loan status in two service calls
@@ -112,9 +112,9 @@ class LibraryState(rx.State):
         self.books = enriched
 
     def load_users(self) -> None:
-        """Fetch all users. Currently unused by the dashboard directly
-        (see load_books' per-book borrower_options) — kept for future
-        member-list/group views.
+        """Fetch all users. Populates both the plain directory (self.users)
+        and a flat "id: name" picker list (self.user_options) — used by
+        the Add Book form's owner picker.
         """
         try:
             user_results = user_service.list_users()
@@ -122,50 +122,11 @@ class LibraryState(rx.State):
             self.error_message = str(e)
             return
         self.users = [u.to_dict() for u in user_results]
+        self.user_options = [f"{u.id}: {u.display_name}" for u in user_results]
 
     def load_all(self) -> None:
         self.load_books()
         self.load_users()
-
-    def lend_book(self, book_id: int, selected_user_option: str, due_in_days: int = 14) -> None:
-        """Attempt to lend a book. `selected_user_option` is one of the
-        "id: name" strings from a book's borrower_options — parsed back
-        into an int id here, since the picker is a plain string select.
-        """
-        self.error_message = ""
-        if not selected_user_option:
-            self.error_message = "Select a borrower first."
-            return
-        try:
-            borrower_id = int(selected_user_option.split(":", 1)[0].strip())
-        except (ValueError, IndexError):
-            self.error_message = "Invalid borrower selection."
-            return
-        try:
-            loan_service.create_loan(
-                book_id=int(book_id),
-                borrower_id=borrower_id,
-                due_date=dt.date.today() + dt.timedelta(days=due_in_days),
-            )
-        except DiodatiError as e:
-            self.error_message = str(e)
-        else:
-            self.load_books()
-
-    def return_book(self, loan_id: int | None) -> None:
-        """Attempt to return a loan. Same exception-translation pattern
-        as lend_book.
-        """
-        self.error_message = ""
-        if loan_id is None:
-            self.error_message = "No active loan to return."
-            return
-        try:
-            loan_service.return_loan(int(loan_id))
-        except DiodatiError as e:
-            self.error_message = str(e)
-        else:
-            self.load_books()
 
     def load_book_detail(self) -> None:
         """Populate detail_book/loan_history for /book/[book_id].
@@ -218,6 +179,71 @@ class LibraryState(rx.State):
                 )
             )
         self.loan_history = history
+
+    def lend_book(self, book_id: int, selected_user_option: str, due_in_days: int = 14) -> None:
+        """Attempt to lend a book. `selected_user_option` is one of the
+        "id: name" strings from a book's borrower_options — parsed back
+        into an int id here, since the picker is a plain string select.
+        """
+        self.error_message = ""
+        if not selected_user_option:
+            self.error_message = "Select a borrower first."
+            return
+        try:
+            borrower_id = int(selected_user_option.split(":", 1)[0].strip())
+        except (ValueError, IndexError):
+            self.error_message = "Invalid borrower selection."
+            return
+        try:
+            loan_service.create_loan(
+                book_id=int(book_id),
+                borrower_id=borrower_id,
+                due_date=dt.date.today() + dt.timedelta(days=due_in_days),
+            )
+        except DiodatiError as e:
+            self.error_message = str(e)
+        else:
+            self.load_books()
+
+    def return_book(self, loan_id: int | None) -> None:
+        """Attempt to return a loan. Same exception-translation pattern
+        as lend_book.
+        """
+        self.error_message = ""
+        if loan_id is None:
+            self.error_message = "No active loan to return."
+            return
+        try:
+            loan_service.return_loan(int(loan_id))
+        except DiodatiError as e:
+            self.error_message = str(e)
+        else:
+            self.load_books()
+
+    def submit_new_book(self, form_data: dict) -> None:
+        """Handle the Add Book form. Owner selection is the same
+        temporary-adapter pattern as the borrower picker — a plain
+        dropdown of all users, until auth_service exists and a book is
+        simply owned by the logged-in user.
+        """
+        self.error_message = ""
+        owner_option = form_data.get("owner_id", "")
+        try:
+            owner_id = int(owner_option.split(":", 1)[0].strip())
+        except (ValueError, IndexError):
+            self.error_message = "Select an owner first."
+            return
+        try:
+            book_service.create_book(
+                owner_id=owner_id,
+                title=form_data.get("title", ""),
+                author=form_data.get("author", ""),
+                isbn=form_data.get("isbn", ""),
+            )
+        except DiodatiError as e:
+            self.error_message = str(e)
+        else:
+            self.load_books()
 
 
 __all__ = ["LibraryState", "BookView", "BookDetailView", "LoanHistoryEntry"]

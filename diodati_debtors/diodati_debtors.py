@@ -8,6 +8,7 @@ from .ui.pages.landing import landing
 from .ui.pages.dashboard import dashboard
 from .ui.pages.book_detail import book_detail
 from .state.library_state import LibraryState
+from .ui.pages.add_book import add_book
 
 
 class State(rx.State):
@@ -22,3 +23,4 @@ app.add_page(landing, route="/")
 app.add_page(style_preview, route="/style-preview")
 app.add_page(dashboard, route="/dashboard", on_load=LibraryState.load_all)
 app.add_page(book_detail, route="/book/[book_id]", on_load=LibraryState.load_book_detail)
+app.add_page(add_book, route="/add-book", on_load=LibraryState.load_users)

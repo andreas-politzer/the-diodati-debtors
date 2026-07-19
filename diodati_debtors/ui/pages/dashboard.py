@@ -80,6 +80,7 @@ def _book_row(book: BookView) -> rx.Component:
 def dashboard() -> rx.Component:
     return shell(
         page_title("The Library"),
+        rx.link("☞ Add a book", href="/add-book", margin_bottom="1rem", display="block"),
         rx.cond(
             LibraryState.error_message != "",
             rx.text(

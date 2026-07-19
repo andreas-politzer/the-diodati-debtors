@@ -1,4 +1,4 @@
-"""Dashboard page — Grund-UI, Phase 2.
+"""Dashboard page — Grund-UI, Phase 2/3.
 
 Shows the real book list from LibraryState (backed by book_service /
 loan_service), not demo objects. No Goya/Easter-egg assets yet — the
@@ -18,22 +18,20 @@ import reflex as rx
 
 from ..components.button import primary_button
 from ..components.card import card
-from ..components.label import body_text, page_title
+from ..components.label import body_text, meta_text, page_title
 from ..components.shell import divider, shell
 from ..tokens import Color, Font, Type
+from ...state.auth_state import AuthState
 from ...state.library_state import BookView, LibraryState
 
 
 def _borrower_picker(book_id: int, borrower_options: list[str]) -> rx.Component:
     """TEMPORARY ADAPTER — placeholder borrower selection until
-    auth_service exists and lending happens as "the logged-in user".
-    Isolated here deliberately so replacing it later touches only this
-    function, never `_book_row`, `dashboard`, or LibraryState's public
-    API.
+    lending happens as "the logged-in user". Isolated here deliberately
+    so replacing it later touches only this function.
 
-    font_family is set explicitly to Font.system — Radix's rx.select
-    otherwise inherits the page's base body font (Baskerville, serif)
-    from global_style(), which is wrong for this system-chrome element.
+    font_family is set explicitly to Font.system — see known design
+    deviation in Roadmap.md (Radix select doesn't fully honor this).
     """
     return rx.select(
         borrower_options,
@@ -55,16 +53,16 @@ def _book_row(book: BookView) -> rx.Component:
             color=Color.text_soft,
         ),
         rx.link(
-    rx.hstack(
-        rx.text("☞", font_size="2rem", line_height="1"),
-        rx.text("View details", font_size=Type.body, font_family=Font.body),
-        spacing="2",
-        align="center",
-    ),
-    href=f"/book/{book.id}",
-    margin_bottom="0.5rem",
-    display="block",
-),
+            rx.hstack(
+                rx.text("☞", font_size="2rem", line_height="1"),
+                rx.text("View details", font_size=Type.body, font_family=Font.body),
+                spacing="2",
+                align="center",
+            ),
+            href=f"/book/{book.id}",
+            margin_bottom="0.5rem",
+            display="block",
+        ),
         rx.cond(
             book.is_on_loan,
             primary_button(
@@ -80,7 +78,15 @@ def _book_row(book: BookView) -> rx.Component:
 def dashboard() -> rx.Component:
     return shell(
         page_title("The Library"),
-        rx.link("☞ Add a book", href="/add-book", margin_bottom="1rem", display="block"),
+        meta_text(f"Logged in as {AuthState.current_user_display_name}"),
+        rx.link("☞ Add a book", href="/add-book", margin_bottom="0.5rem", display="block"),
+        rx.link(
+            "☞ Log out",
+            href="/",
+            on_click=AuthState.logout,
+            margin_bottom="1rem",
+            display="block",
+        ),
         rx.cond(
             LibraryState.error_message != "",
             rx.text(

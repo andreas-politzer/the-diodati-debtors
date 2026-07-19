@@ -2,7 +2,7 @@
 
 Wires the design tokens (ui/tokens.py) into Reflex's `global_style`
 mechanism, applied via `rx.App(style=...)`. The Radix theme itself is
-now configured directly in rxconfig.py's RadixThemesPlugin — passing
+configured directly in rxconfig.py's RadixThemesPlugin — passing
 `theme=` to rx.App() was deprecated in Reflex 0.9.0.
 
 Phase 1 scope only: no page-specific styling lives here.
@@ -41,6 +41,16 @@ def global_style() -> dict:
             "_hover": {
                 "color": Color.accent,
             },
+        },
+
+        # Explicit placeholder colour — the browser default (light
+        # grey) was nearly invisible against our Pergament-Creme
+        # background, which looked like empty inputs with no
+        # placeholder at all rather than a styling choice.
+        "::placeholder": {
+            "color": Color.text_soft,
+            "opacity": "1",
+            "font_family": Font.system,
         },
 
         ".diodati-meta": {

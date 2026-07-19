@@ -1,4 +1,4 @@
-"""Login page — public, no auth required to view."""
+"""Register page — public, no auth required to view."""
 
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ from ..tokens import Color, Font, Type
 from ...state.auth_state import AuthState
 
 
-def login() -> rx.Component:
+def register() -> rx.Component:
     return shell(
-        page_title("Log in"),
+        page_title("Register"),
         rx.cond(
             AuthState.error_message != "",
             rx.text(
@@ -25,21 +25,20 @@ def login() -> rx.Component:
         ),
         rx.form(
             rx.vstack(
+                rx.input(placeholder="Display name", name="display_name", required=True),
                 rx.input(placeholder="Email", name="email", type="email", required=True),
                 rx.input(
                     placeholder="Password", name="password", type="password", required=True
                 ),
-                primary_button("Log in", type="submit"),
+                primary_button("Register", type="submit"),
                 spacing="3",
             ),
-            on_submit=AuthState.login,
+            on_submit=AuthState.register,
             reset_on_submit=True,
         ),
-        rx.link(
-            "☞ Register instead", href="/register", margin_top="1rem", display="block"
-        ),
+        rx.link("☞ Log in instead", href="/login", margin_top="1rem", display="block"),
         max_width="28rem",
     )
 
 
-__all__ = ["login"]
+__all__ = ["register"]

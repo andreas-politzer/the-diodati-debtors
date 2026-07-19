@@ -1,9 +1,4 @@
-"""Landing page — public, no login required.
-
-Deliberately minimal: title, one-line description, entry point into
-the library. Expands later with real auth (register/login links)
-rather than being thrown away.
-"""
+"""Landing page — public, no login required."""
 
 from __future__ import annotations
 
@@ -22,7 +17,8 @@ def landing() -> rx.Component:
             "your own books, lend and borrow within the group, and see "
             "who still owes whom a return."
         ),
-        rx.link(primary_button("Enter the library"), href="/dashboard"),
+        rx.link(primary_button("Log in"), href="/login"),
+        rx.link("☞ Register instead", href="/register", margin_top="1rem", display="block"),
         max_width="36rem",
     )
 

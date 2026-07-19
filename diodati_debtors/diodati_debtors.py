@@ -5,6 +5,9 @@ import reflex as rx
 from rxconfig import config
 from .ui.theme import global_style, stylesheets
 from .ui.pages.style_preview import style_preview
+from .ui.pages.dashboard import dashboard
+from .state.library_state import LibraryState
+from .ui.pages.book_detail import book_detail
 
 
 class State(rx.State):
@@ -40,3 +43,5 @@ app = rx.App(
 )
 app.add_page(index)
 app.add_page(style_preview, route="/style-preview")
+app.add_page(dashboard, route="/dashboard", on_load=LibraryState.load_all)
+app.add_page(book_detail, route="/book/[book_id]", on_load=LibraryState.load_book_detail)

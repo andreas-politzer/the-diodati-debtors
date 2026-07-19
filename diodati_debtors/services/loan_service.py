@@ -174,6 +174,16 @@ def get_active_loans_for_books(book_ids: list[int]) -> dict[int, LoanResult]:
         ).all()
         return {loan.book_id: _to_result(loan) for loan in active_loans}
 
+def list_loans_for_book(book_id: int) -> list[LoanResult]:
+    """All loans (active and historical) for a book, most recent first.
+
+    Read-only — used by the book detail page to show loan history.
+    """
+    with get_session() as session:
+        loans = session.scalars(
+            select(Loan).where(Loan.book_id == book_id).order_by(Loan.loan_date.desc())
+        ).all()
+        return [_to_result(loan) for loan in loans]
 
 __all__ = [
     "LoanResult",
@@ -181,4 +191,5 @@ __all__ = [
     "return_loan",
     "get_active_loan_for_book",
     "get_active_loans_for_books",
+    "list_loans_for_book",
 ]

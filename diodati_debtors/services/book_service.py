@@ -34,11 +34,12 @@ class BookResult:
     isbn: str | None
     created_at: dt.datetime
 
-def to_dict(self) -> dict:
+    def to_dict(self) -> dict:
         """Explicit serialization boundary — see loan_service.LoanResult
         for the same pattern and rationale.
         """
         return asdict(self)
+
 
 def _to_result(book: Book) -> BookResult:
     return BookResult(

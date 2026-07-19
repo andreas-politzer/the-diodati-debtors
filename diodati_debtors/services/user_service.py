@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 
 from sqlalchemy import select
 
+from ..core.exceptions import NotFoundError
 from ..db.session import get_session
 from ..models.user import User
 
@@ -34,6 +35,19 @@ def _to_result(user: User) -> UserResult:
     return UserResult(id=user.id, email=user.email, display_name=user.display_name)
 
 
+def get_user(user_id: int) -> UserResult:
+    """Fetch a single user.
+
+    Raises:
+        NotFoundError: if the user does not exist.
+    """
+    with get_session() as session:
+        user = session.get(User, user_id)
+        if user is None:
+            raise NotFoundError(f"User {user_id} does not exist.")
+        return _to_result(user)
+
+
 def list_users() -> list[UserResult]:
     """List all users, ordered by display name."""
     with get_session() as session:
@@ -41,4 +55,4 @@ def list_users() -> list[UserResult]:
         return [_to_result(user) for user in users]
 
 
-__all__ = ["UserResult", "list_users"]
+__all__ = ["UserResult", "get_user", "list_users"]

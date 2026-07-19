@@ -1,0 +1,14 @@
+.web
+.states
+assets/external/
+.venv/
+.env
+.web/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.DS_Store
+*.db

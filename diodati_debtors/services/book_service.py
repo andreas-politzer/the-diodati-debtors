@@ -5,6 +5,11 @@ exceptions, self-contained transactions, no Reflex import.
 Open Library ISBN lookup is deferred (Decorative-Assets-Gate /
 "Deferred Until Core Is Green") — isbn here is accepted only as a
 plain, optional string, never validated or auto-populated.
+
+Group-scoped listing (list_books_for_group) lives here, not in
+group_service — it's still fundamentally "give me books, filtered",
+the same shape as list_books()/list_books_for_owner(), just with a
+membership join added. Keeps book-listing logic in one place.
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ from ..core.exceptions import InvalidBookDataError, NotFoundError
 from ..core.normalize import blank_to_none
 from ..db.session import get_session
 from ..models.book import Book
+from ..models.group import GroupMembership
 from ..models.user import User
 
 
@@ -32,12 +38,10 @@ class BookResult:
     title: str
     author: str | None
     isbn: str | None
+    location: str | None
     created_at: dt.datetime
 
     def to_dict(self) -> dict:
-        """Explicit serialization boundary — see loan_service.LoanResult
-        for the same pattern and rationale.
-        """
         return asdict(self)
 
 
@@ -48,6 +52,7 @@ def _to_result(book: Book) -> BookResult:
         title=book.title,
         author=book.author,
         isbn=book.isbn,
+        location=book.location,
         created_at=book.created_at,
     )
 
@@ -57,6 +62,7 @@ def create_book(
     title: str,
     author: str | None = None,
     isbn: str | None = None,
+    location: str | None = None,
 ) -> BookResult:
     """Add a book to an owner's catalogue.
 
@@ -78,6 +84,7 @@ def create_book(
             title=stripped_title,
             author=blank_to_none(author),
             isbn=blank_to_none(isbn),
+            location=blank_to_none(location),
         )
         session.add(book)
         session.flush()
@@ -98,14 +105,48 @@ def get_book(book_id: int) -> BookResult:
 
 
 def list_books() -> list[BookResult]:
-    """List all books, ordered by creation time.
+    """List all books system-wide, ordered by creation time.
 
-    Phase 2 scope: no group/visibility filtering yet — that arrives
-    with the group/membership UI in a later phase.
+    No group/owner filtering — mostly useful for debugging/admin, not
+    a real user-facing view now that group-scoped listing exists.
     """
     with get_session() as session:
         books = session.scalars(select(Book).order_by(Book.created_at)).all()
         return [_to_result(book) for book in books]
 
 
-__all__ = ["BookResult", "create_book", "get_book", "list_books"]
+def list_books_for_owner(owner_id: int) -> list[BookResult]:
+    """A single user's own catalogue — "My Personal Library"."""
+    with get_session() as session:
+        books = session.scalars(
+            select(Book)
+            .where(Book.owner_id == owner_id)
+            .order_by(Book.created_at)
+        ).all()
+        return [_to_result(book) for book in books]
+
+
+def list_books_for_group(group_id: int) -> list[BookResult]:
+    """Every book owned by any member of the given group —
+    "Common/Club Library". Per Domain Model v2's visibility decision: a
+    book is automatically visible in every group its owner belongs to,
+    no per-club opt-in/opt-out.
+    """
+    with get_session() as session:
+        books = session.scalars(
+            select(Book)
+            .join(GroupMembership, GroupMembership.user_id == Book.owner_id)
+            .where(GroupMembership.group_id == group_id)
+            .order_by(Book.created_at)
+        ).all()
+        return [_to_result(book) for book in books]
+
+
+__all__ = [
+    "BookResult",
+    "create_book",
+    "get_book",
+    "list_books",
+    "list_books_for_owner",
+    "list_books_for_group",
+]

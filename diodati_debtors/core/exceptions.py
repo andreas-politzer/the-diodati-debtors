@@ -68,6 +68,35 @@ class InvalidCredentialsError(BusinessRuleViolation):
     """
 
 
+class InvalidGroupDataError(BusinessRuleViolation):
+    """Raised when group data fails validation (e.g. a blank name)."""
+
+
+class AlreadyGroupMemberError(BusinessRuleViolation):
+    """Raised when a user who is already a member requests to join
+    the same group again.
+    """
+
+
+class DuplicateJoinRequestError(BusinessRuleViolation):
+    """Raised when a user already has a pending JoinRequest for a
+    group and submits another one.
+    """
+
+
+class RequestNotPendingError(BusinessRuleViolation):
+    """Raised when attempting to approve/decline a JoinRequest or
+    LoanRequest that is not in PENDING status — approved/declined
+    requests are immutable history, not re-reviewable.
+    """
+
+class NotAuthorizedError(BusinessRuleViolation):
+    """Raised when a user attempts an action requiring a group role
+    they don't have — e.g. approving a JoinRequest without being that
+    group's founder/admin.
+    """
+
+
 __all__ = [
     "DiodatiError",
     "NotFoundError",
@@ -79,4 +108,9 @@ __all__ = [
     "InvalidRegistrationDataError",
     "EmailAlreadyRegisteredError",
     "InvalidCredentialsError",
+    "InvalidGroupDataError",
+    "AlreadyGroupMemberError",
+    "DuplicateJoinRequestError",
+    "RequestNotPendingError",
+    "NotAuthorizedError",
 ]

@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from diodati_debtors.core.exceptions import InvalidBookDataError, NotFoundError
+from diodati_debtors.models.group import Group, GroupMembership
 from diodati_debtors.models.user import User
 from diodati_debtors.services import book_service
 
@@ -23,28 +24,49 @@ def _make_user(db, email: str) -> int:
         return user.id
 
 
+def _make_group(db, name: str, founder_id: int) -> int:
+    with db() as session:
+        group = Group(name=name, founder_id=founder_id)
+        session.add(group)
+        session.commit()
+        session.refresh(group)
+        return group.id
+
+
+def _add_membership(db, user_id: int, group_id: int) -> None:
+    with db() as session:
+        session.add(GroupMembership(user_id=user_id, group_id=group_id))
+        session.commit()
+
+
 def test_create_book_succeeds(db):
     owner_id = _make_user(db, "owner1@example.com")
 
     result = book_service.create_book(
-        owner_id=owner_id, title="Frankenstein", author="Mary Shelley", isbn="9780141439471"
+        owner_id=owner_id,
+        title="Frankenstein",
+        author="Mary Shelley",
+        isbn="9780141439471",
+        location="Living room, green shelf",
     )
 
     assert result.owner_id == owner_id
     assert result.title == "Frankenstein"
     assert result.author == "Mary Shelley"
     assert result.isbn == "9780141439471"
+    assert result.location == "Living room, green shelf"
 
 
 def test_create_book_normalizes_whitespace_only_optional_fields_to_none(db):
     owner_id = _make_user(db, "owner2@example.com")
 
     result = book_service.create_book(
-        owner_id=owner_id, title="Dracula", author="   ", isbn="  "
+        owner_id=owner_id, title="Dracula", author="   ", isbn="  ", location="   "
     )
 
     assert result.author is None
     assert result.isbn is None
+    assert result.location is None
 
 
 def test_create_book_rejects_blank_title(db):
@@ -72,6 +94,34 @@ def test_list_books_returns_all_in_creation_order(db):
     books = book_service.list_books()
 
     assert [b.id for b in books] == [first.id, second.id]
+
+
+def test_list_books_for_owner_returns_only_that_owners_books(db):
+    owner_a = _make_user(db, "ownerA@example.com")
+    owner_b = _make_user(db, "ownerB@example.com")
+    book_a = book_service.create_book(owner_id=owner_a, title="Owner A's Book")
+    book_service.create_book(owner_id=owner_b, title="Owner B's Book")
+
+    books = book_service.list_books_for_owner(owner_a)
+
+    assert [b.id for b in books] == [book_a.id]
+
+
+def test_list_books_for_group_includes_all_members_books(db):
+    founder_id = _make_user(db, "founder@example.com")
+    member_id = _make_user(db, "member@example.com")
+    outsider_id = _make_user(db, "outsider@example.com")
+    group_id = _make_group(db, "Gothic Novel Society", founder_id=founder_id)
+    _add_membership(db, founder_id, group_id)
+    _add_membership(db, member_id, group_id)
+
+    founder_book = book_service.create_book(owner_id=founder_id, title="Founder's Book")
+    member_book = book_service.create_book(owner_id=member_id, title="Member's Book")
+    book_service.create_book(owner_id=outsider_id, title="Outsider's Book")
+
+    books = book_service.list_books_for_group(group_id)
+
+    assert {b.id for b in books} == {founder_book.id, member_book.id}
 
 
 def test_book_service_has_no_reflex_dependency():

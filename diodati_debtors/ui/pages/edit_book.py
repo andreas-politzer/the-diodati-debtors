@@ -1,6 +1,7 @@
 """Edit Book page — edit mode of the shared BookForm, prefilled via
-LibraryState._populate_form_from_detail (called at the end of
-load_book_detail).
+LibraryState._populate_form_from_detail. Same search/ISBN-lookup
+options as Add Book — the form is a reusable editing surface,
+regardless of what feeds it.
 """
 
 from __future__ import annotations
@@ -8,8 +9,9 @@ from __future__ import annotations
 import reflex as rx
 
 from ..components.book_form import book_form
+from ..components.book_search_panel import book_search_panel
 from ..components.label import page_title
-from ..components.shell import shell
+from ..components.shell import divider, shell
 from ..tokens import Color, Font, Type
 from ...state.library_state import LibraryState
 
@@ -34,6 +36,8 @@ def edit_book() -> rx.Component:
                 font_size=Type.meta,
             ),
         ),
+        book_search_panel(),
+        divider(),
         rx.cond(
             LibraryState.detail_book,
             book_form(book_id=LibraryState.detail_book.id, submit_label="Save changes"),

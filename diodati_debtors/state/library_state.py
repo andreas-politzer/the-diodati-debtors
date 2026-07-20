@@ -67,6 +67,16 @@ class BookDetailView:
     owner_name: str = ""
     status: str = ""
 
+@dataclass
+class BookSearchResultView:
+    work_key: str
+    title: str
+    author: str | None = None
+    publish_year: int | None = None
+    edition_count: int | None = None
+    isbn: str | None = None
+    cover_url: str | None = None
+
 
 class LibraryState(rx.State):
     active_tab: str = "personal"  # "personal" | "common"
@@ -84,6 +94,8 @@ class LibraryState(rx.State):
     form_author: str = ""
     form_isbn: str = ""
     form_location: str = ""
+    search_query: str = ""
+    search_results: list[BookSearchResultView] = []
 
     def set_form_title(self, value: str):
         self.form_title = value
@@ -291,6 +303,63 @@ class LibraryState(rx.State):
         if metadata.author:
             self.form_author = metadata.author
         self.info_message = "Filled in from Open Library — check before saving."
+
+
+    def set_search_query(self, value: str):
+        self.search_query = value
+
+    def run_search(self):
+        """Title search — a completely separate workflow from ISBN
+        lookup. Presents candidates with cover art; never auto-selects
+        one. The user always makes the final choice.
+        """
+        self.error_message = ""
+        self.info_message = ""
+        try:
+            results = book_service.search_books(self.search_query)
+        except DiodatiError as e:
+            self.error_message = str(e)
+            self.search_results = []
+            return
+        self.search_results = [
+            BookSearchResultView(
+                work_key=r.work_key,
+                title=r.title,
+                author=r.author,
+                publish_year=r.publish_year,
+                edition_count=r.edition_count,
+                isbn=r.isbn,
+                cover_url=(
+                    f"https://covers.openlibrary.org/b/id/{r.cover_id}-M.jpg"
+                    if r.cover_id
+                    else None
+                ),
+            )
+            for r in results
+        ]
+        if not self.search_results:
+            self.info_message = "No matches found."
+
+    def select_search_result(self, work_key: str):
+        """Populate the form from the chosen candidate — same
+        form_* fields as ISBN lookup and manual typing. BookForm
+        itself never knows where the data came from.
+        """
+        match = next((r for r in self.search_results if r.work_key == work_key), None)
+        if match is None:
+            return
+        self.form_title = match.title
+        if match.author:
+            self.form_author = match.author
+        if match.isbn:
+            self.form_isbn = match.isbn
+        self.search_results = []
+        self.search_query = ""
+        self.info_message = "Filled in from Open Library search — check before saving."
+
+    def clear_search(self):
+        self.search_query = ""
+        self.search_results = []
 
     async def request_to_borrow(self, book_id: int):
         self.error_message = ""

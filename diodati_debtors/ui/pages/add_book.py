@@ -1,12 +1,16 @@
-"""Add Book page — create mode of the shared BookForm."""
+"""Add Book page — create mode of the shared BookForm, with two ways
+to prefill it: Open Library title search, or ISBN lookup (inside the
+form itself).
+"""
 
 from __future__ import annotations
 
 import reflex as rx
 
 from ..components.book_form import book_form
+from ..components.book_search_panel import book_search_panel
 from ..components.label import page_title
-from ..components.shell import shell
+from ..components.shell import divider, shell
 from ..tokens import Color, Font, Type
 from ...state.library_state import LibraryState
 
@@ -31,6 +35,8 @@ def add_book() -> rx.Component:
                 font_size=Type.meta,
             ),
         ),
+        book_search_panel(),
+        divider(),
         book_form(submit_label="Add book"),
         rx.link(
             "☞ Back to library", href="/dashboard", margin_top="1rem", display="block"

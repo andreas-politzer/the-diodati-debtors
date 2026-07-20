@@ -11,9 +11,13 @@ from .ui.pages.clubs import clubs
 from .ui.pages.dashboard import dashboard
 from .ui.pages.book_detail import book_detail
 from .ui.pages.add_book import add_book
+from .ui.pages.organize import organize
+from .ui.pages.members import members
+from .ui.pages.member_detail import member_detail
 from .state.auth_state import AuthState
 from .state.group_state import GroupState
 from .state.library_state import LibraryState
+from .state.organize_state import OrganizeState
 
 
 class State(rx.State):
@@ -47,4 +51,19 @@ app.add_page(
     add_book,
     route="/add-book",
     on_load=[AuthState.check_auth, LibraryState.load_users],
+)
+app.add_page(
+    organize,
+    route="/organize",
+    on_load=[AuthState.check_auth, OrganizeState.load_all],
+)
+app.add_page(
+    members,
+    route="/members",
+    on_load=[AuthState.check_auth, GroupState.load_my_groups, GroupState.load_members_overview],
+)
+app.add_page(
+    member_detail,
+    route="/members/[member_id]",
+    on_load=[AuthState.check_auth, LibraryState.load_member_library],
 )

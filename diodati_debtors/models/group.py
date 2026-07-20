@@ -34,6 +34,7 @@ class Group(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     # Intentionally not unique — two clubs may share a name.
     name: Mapped[str] = mapped_column(String(150), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     founder_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False

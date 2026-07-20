@@ -390,6 +390,22 @@ def decline_loan_request(request_id: int, reviewer_id: int) -> LoanRequestResult
         request.reviewed_by = reviewer_id
         session.flush()
         return _to_request_result(request)
+    
+def list_pending_loan_requests_for_owner(owner_id: int) -> list[LoanRequestResult]:
+    """All pending loan requests across every book this user owns —
+    feeds the Organize inbox.
+    """
+    with get_session() as session:
+        requests = session.scalars(
+            select(LoanRequest)
+            .join(Book, Book.id == LoanRequest.book_id)
+            .where(
+                Book.owner_id == owner_id,
+                LoanRequest.status == RequestStatus.PENDING,
+            )
+            .order_by(LoanRequest.requested_at)
+        ).all()
+        return [_to_request_result(r) for r in requests]
 
 
 __all__ = [
@@ -405,4 +421,5 @@ __all__ = [
     "get_pending_request_book_ids_for_requester",
     "approve_loan_request",
     "decline_loan_request",
+    "list_pending_loan_requests_for_owner",
 ]

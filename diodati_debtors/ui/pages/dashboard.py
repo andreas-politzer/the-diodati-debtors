@@ -1,17 +1,18 @@
-"""Dashboard page — Common/Personal Library as tabs, one shared list
-component: data source changes, presentation stays identical.
+"""Dashboard page — "What books can I access right now?"
 
-No hard redirect to /clubs — Personal Library must work with zero
-clubs (Domain Model v2, principle 1). The Common tab shows an inline
-prompt instead of blocking the page when no club is selected.
+Personal Library / Common Club Library as tabs, one shared list
+component (book_row) — data source changes, presentation stays
+identical. The Common Club Library tab owns a club switcher; this is
+the one place in the app where the active club context is chosen
+(GitHub-repo / Slack-workspace style) — Clubs page and Members page no
+longer duplicate this selection.
 """
 
 from __future__ import annotations
 
 import reflex as rx
 
-from ..components.button import primary_button
-from ..components.card import card
+from ..components.book_row import book_row
 from ..components.label import body_text, meta_text, page_title
 from ..components.shell import divider, shell
 from ..tokens import Border, Color, Font, Radius, Space, Type
@@ -39,49 +40,20 @@ def _tab_button(label: str, tab_key: str) -> rx.Component:
     )
 
 
-def _borrower_picker(book_id, borrower_options) -> rx.Component:
-    """TEMPORARY ADAPTER — placeholder borrower selection until
-    lending happens as "the logged-in user". Isolated here deliberately
-    so replacing it later touches only this function.
-    """
-    return rx.select(
-        borrower_options,
-        placeholder="Lend to...",
-        font_family=Font.system,
-        font_size=Type.meta,
-        on_change=lambda selected: LibraryState.lend_book(book_id, selected),
-    )
-
-
-def _book_row(book) -> rx.Component:
-    return card(
-        page_title(book.title),
-        rx.cond(book.author, body_text(book.author)),
-        rx.text(
-            book.status,
+def _club_switcher() -> rx.Component:
+    return rx.vstack(
+        meta_text("Current club"),
+        rx.select(
+            GroupState.group_options,
+            placeholder="Switch club...",
             font_family=Font.system,
             font_size=Type.meta,
-            color=Color.text_soft,
+            on_change=lambda selected: [
+                GroupState.switch_group(selected),
+                LibraryState.load_books,
+            ],
         ),
-        rx.link(
-            rx.hstack(
-                rx.text("☞", font_size="2rem", line_height="1"),
-                rx.text("View details", font_size=Type.body, font_family=Font.body),
-                spacing="2",
-                align="center",
-            ),
-            href=f"/book/{book.id}",
-            margin_bottom="0.5rem",
-            display="block",
-        ),
-        rx.cond(
-            book.is_on_loan,
-            primary_button(
-                "Mark returned",
-                on_click=lambda: LibraryState.return_book(book.active_loan_id),
-            ),
-            _borrower_picker(book.id, book.borrower_options),
-        ),
+        spacing="1",
         margin_bottom="1rem",
     )
 
@@ -94,18 +66,20 @@ def dashboard() -> rx.Component:
                 rx.cond(
                     GroupState.current_group_id != "",
                     GroupState.current_group_name,
-                    "Common Library",
+                    "Common Club Library",
                 )
             ),
             page_title("My Library"),
         ),
         meta_text(f"Logged in as {AuthState.current_user_display_name}"),
         rx.link("☞ Add a book", href="/add-book", margin_bottom="0.5rem", display="block"),
-        rx.link("☞ Your clubs", href="/clubs", margin_bottom="0.5rem", display="block"),
+        rx.link("☞ Clubs", href="/clubs", margin_bottom="0.5rem", display="block"),
+        rx.link("☞ Members", href="/members", margin_bottom="0.5rem", display="block"),
+        rx.link("☞ Organize", href="/organize", margin_bottom="0.5rem", display="block"),
         rx.link(
             "☞ Log out",
             href="/",
-            on_click=AuthState.logout,
+            on_click=[AuthState.logout, GroupState.clear_selection],
             margin_bottom="1rem",
             display="block",
         ),
@@ -118,22 +92,52 @@ def dashboard() -> rx.Component:
                 color=Color.warning,
             ),
         ),
+        rx.cond(
+            LibraryState.info_message != "",
+            meta_text(LibraryState.info_message),
+        ),
         rx.hstack(
             _tab_button("Personal Library", "personal"),
-            _tab_button("Common Library", "common"),
+            _tab_button("Common Club Library", "common"),
             spacing="3",
             margin_bottom="1rem",
         ),
-        divider(),
         rx.cond(
-            (LibraryState.active_tab == "common") & (GroupState.current_group_id == ""),
-            rx.fragment(
-                body_text("Select or found a club to see its shared library."),
-                rx.link(
-                    "☞ Go to your clubs", href="/clubs", margin_top="0.5rem", display="block"
+            LibraryState.active_tab == "common",
+            rx.cond(
+                GroupState.current_group_id == "",
+                rx.cond(
+                    GroupState.has_groups,
+                    rx.fragment(
+                        body_text("You haven't selected a club yet."),
+                        meta_text("Choose one from the dropdown above."),
+                    ),
+                    rx.fragment(
+                        body_text("You're not a member of any club yet."),
+                        rx.link(
+                            "☞ Browse or found a club",
+                            href="/clubs",
+                            margin_top="0.5rem",
+                            display="block",
+                        ),
+                    ),
+                ),
+                rx.cond(
+                    LibraryState.books.length() > 0,
+                    rx.foreach(LibraryState.books, book_row),
+                    body_text("This club doesn't have any books yet."),
                 ),
             ),
-            rx.foreach(LibraryState.books, _book_row),
+            rx.cond(
+                LibraryState.books.length() > 0,
+                rx.foreach(LibraryState.books, book_row),
+                rx.fragment(
+                    body_text("You don't have any books in your library yet."),
+                    body_text(
+                        'Click "Add a book" and start building your personal library.'
+                    ),
+                ),
+            ),
         ),
         max_width="48rem",
     )

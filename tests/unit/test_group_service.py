@@ -157,6 +157,38 @@ def test_decline_join_request_creates_no_membership(db):
         ).count()
         assert count == 0
 
+def test_update_group_description_succeeds(db):
+    founder_id = _make_user(db, "founder11@example.com")
+    group = group_service.create_group(founder_id=founder_id, name="Club I")
+
+    result = group_service.update_group_description(
+        group.id, founder_id=founder_id, description="We read 18th-century French literature."
+    )
+
+    assert result.description == "We read 18th-century French literature."
+
+
+def test_update_group_description_rejects_non_founder(db):
+    founder_id = _make_user(db, "founder12@example.com")
+    outsider_id = _make_user(db, "outsider2@example.com")
+    group = group_service.create_group(founder_id=founder_id, name="Club J")
+
+    with pytest.raises(NotAuthorizedError):
+        group_service.update_group_description(
+            group.id, founder_id=outsider_id, description="Trying to sneak in a description."
+        )
+
+
+def test_update_group_description_normalizes_blank_to_none(db):
+    founder_id = _make_user(db, "founder13@example.com")
+    group = group_service.create_group(founder_id=founder_id, name="Club K")
+
+    result = group_service.update_group_description(
+        group.id, founder_id=founder_id, description="   "
+    )
+
+    assert result.description is None
+
 
 def test_group_service_has_no_reflex_dependency():
     with open(group_service.__file__, encoding="utf-8") as f:

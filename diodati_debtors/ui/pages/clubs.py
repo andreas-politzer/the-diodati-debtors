@@ -1,9 +1,13 @@
-"""Club selection/creation page.
+"""Clubs page — "How do I discover, join, or create clubs?"
 
-Bootstrap case (Domain Model v2, project vault): a user with zero
-clubs must be able to found the first one — there's no "empty system"
-deadlock. Users with existing clubs pick one to make active; everyone
-can also browse all clubs and request to join one they're not in yet.
+Founding, browsing/joining, and editing a club's description all live
+here. Editing is restricted to the founder at the service layer
+(NotAuthorizedError if not).
+
+Descriptions can be long (a proper "about us"), so: a multi-line
+text_area for editing, and a collapsible <details>/<summary> element
+for browsing — no Reflex state needed for the expand/collapse, it's
+native HTML behaviour.
 """
 
 from __future__ import annotations
@@ -18,22 +22,25 @@ from ..tokens import Color, Font, Type
 from ...state.group_state import GroupState
 
 
-def _my_group_row(group: dict) -> rx.Component:
-    return card(
-        page_title(group["name"]),
-        primary_button(
-            "Enter this club", on_click=lambda: GroupState.select_group(group["id"])
-        ),
-        margin_bottom="1rem",
-    )
-
-
 def _available_group_row(group: dict) -> rx.Component:
     return card(
         page_title(group["name"]),
+        rx.cond(
+            group["description"],
+            rx.el.details(
+                rx.el.summary(
+                    "☞ About this club",
+                    font_family=Font.system,
+                    font_size=Type.meta,
+                    cursor="pointer",
+                ),
+                body_text(group["description"], margin_top="0.5rem"),
+            ),
+        ),
         primary_button(
             "Request to join",
             on_click=lambda: GroupState.send_join_request(group["id"]),
+            margin_top="0.5rem",
         ),
         margin_bottom="1rem",
     )
@@ -41,7 +48,7 @@ def _available_group_row(group: dict) -> rx.Component:
 
 def clubs() -> rx.Component:
     return shell(
-        page_title("Your clubs"),
+        page_title("Clubs"),
         rx.cond(
             GroupState.error_message != "",
             rx.text(
@@ -55,17 +62,6 @@ def clubs() -> rx.Component:
             GroupState.info_message != "",
             meta_text(GroupState.info_message),
         ),
-        rx.cond(
-            GroupState.has_groups,
-            rx.fragment(
-                rx.foreach(GroupState.my_groups, _my_group_row),
-            ),
-            body_text(
-                "You're not a member of any club yet. Found the first one, "
-                "or browse existing clubs below to request joining."
-            ),
-        ),
-        divider(),
         page_title("Found a new club"),
         rx.form(
             rx.hstack(
@@ -77,8 +73,36 @@ def clubs() -> rx.Component:
             reset_on_submit=True,
         ),
         divider(),
+        rx.cond(
+            GroupState.current_group_id != "",
+            rx.fragment(
+                page_title("Edit current club's description"),
+                meta_text(GroupState.current_group_name),
+                rx.form(
+                    rx.vstack(
+                        rx.text_area(
+                            placeholder="Tell people about your club — what you read, why you started it...",
+                            name="description",
+                            rows="5",
+                            width="100%",
+                            font_family=Font.body,
+                            font_size=Type.body,
+                        ),
+                        primary_button("Save", type="submit"),
+                        spacing="3",
+                    ),
+                    on_submit=GroupState.update_description,
+                ),
+                divider(),
+            ),
+        ),
         page_title("Browse clubs"),
-        rx.foreach(GroupState.available_groups, _available_group_row),
+        rx.cond(
+            GroupState.available_groups.length() > 0,
+            rx.foreach(GroupState.available_groups, _available_group_row),
+            body_text("No other clubs to join right now."),
+        ),
+        rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
         max_width="40rem",
     )
 

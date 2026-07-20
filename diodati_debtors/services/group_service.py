@@ -41,6 +41,7 @@ from sqlalchemy.exc import IntegrityError
 class GroupResult:
     id: int
     name: str
+    description: str | None
     founder_id: int
 
     def to_dict(self) -> dict:
@@ -62,7 +63,9 @@ class JoinRequestResult:
 
 
 def _to_group_result(group: Group) -> GroupResult:
-    return GroupResult(id=group.id, name=group.name, founder_id=group.founder_id)
+    return GroupResult(
+        id=group.id, name=group.name, description=group.description, founder_id=group.founder_id
+    )
 
 
 def _to_join_request_result(request: JoinRequest) -> JoinRequestResult:
@@ -309,6 +312,70 @@ def decline_join_request(request_id: int, reviewer_id: int) -> JoinRequestResult
         request.reviewed_by = reviewer_id
         session.flush()
         return _to_join_request_result(request)
+    
+def list_pending_join_requests_for_founder(founder_id: int) -> list[JoinRequestResult]:
+    """All pending join requests across every group this user founded —
+    feeds the Organize inbox.
+    """
+    with get_session() as session:
+        requests = session.scalars(
+            select(JoinRequest)
+            .join(Group, Group.id == JoinRequest.group_id)
+            .where(
+                Group.founder_id == founder_id,
+                JoinRequest.status == RequestStatus.PENDING,
+            )
+            .order_by(JoinRequest.requested_at)
+        ).all()
+        return [_to_join_request_result(r) for r in requests]
+    
+@dataclass(frozen=True)
+class MemberResult:
+    user_id: int
+    display_name: str
+    role: str
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+def list_members(group_id: int) -> list[MemberResult]:
+    """All members of a group, with their role — feeds the Members page."""
+    with get_session() as session:
+        memberships = session.scalars(
+            select(GroupMembership)
+            .where(GroupMembership.group_id == group_id)
+            .order_by(GroupMembership.role.desc(), GroupMembership.joined_at)
+        ).all()
+        return [
+            MemberResult(
+                user_id=m.user_id,
+                display_name=m.user.display_name,
+                role=m.role.value,
+            )
+            for m in memberships
+        ]
+    
+def update_group_description(group_id: int, founder_id: int, description: str | None) -> GroupResult:
+    """Update a club's description. Only the group's founder may edit
+    it — checked explicitly here, same pattern as
+    _ensure_can_review_loan_request in loan_service.
+
+    Raises:
+        NotFoundError: if the group does not exist.
+        NotAuthorizedError: if founder_id does not own (found) the group.
+    """
+    with get_session() as session:
+        group = session.get(Group, group_id)
+        if group is None:
+            raise NotFoundError(f"Group {group_id} does not exist.")
+        if group.founder_id != founder_id:
+            raise NotAuthorizedError(
+                f"User {founder_id} is not the founder of group {group_id}."
+            )
+        group.description = blank_to_none(description)
+        session.flush()
+        return _to_group_result(group)
 
 
 __all__ = [
@@ -322,4 +389,8 @@ __all__ = [
     "list_pending_join_requests_for_group",
     "approve_join_request",
     "decline_join_request",
+    "list_pending_join_requests_for_founder",
+    "MemberResult",
+    "list_members",
+    "update_group_description",
 ]

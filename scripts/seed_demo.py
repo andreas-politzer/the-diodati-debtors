@@ -1,25 +1,23 @@
-"""Seed demo data.
+"""Seed demo data — larger volume for manual testing across roles.
 
-Exercises the same service functions a real user would trigger — book
-creation goes through book_service.create_book, loans go through
-loan_service.create_loan/return_loan — so this script is not a
-parallel, hand-rolled data path that could drift from real behaviour.
-It just automates the same actions a person would take by hand.
+Registration goes through auth_service.register (real, working
+passwords for every demo user, not a placeholder hash) — so you can
+log in as any of them. Books go through book_service.create_book, one
+call per book, still not a parallel hand-rolled data path.
 
-User/Group/GroupMembership creation goes directly through the ORM,
-since auth_service (registration) exists but group_service does not
-yet — password_hash below is a clearly-labelled placeholder, not a
-real hash for the demo users' actual passwords.
-
-Founder invariant (Domain Model v2, project vault): a group's founder
-always has a GroupMembership with role == FOUNDER. Enforced here by
-hand until group_service exists to enforce it atomically.
+Four users, each with ten books, spread across two clubs with
+deliberate overlap (multi-club membership, founder vs. member roles),
+a mix of active/returned loans, and one pending join request plus one
+pending loan request already sitting in the Organize inbox for
+immediate testing.
 
 This script is destructive: it truncates existing demo data before
 reseeding (not DELETE — TRUNCATE also resets MySQL's auto-increment
 counters, so repeated runs produce identical, deterministic primary
 keys). It refuses to run unless DIODATI_DEBUG is enabled, as a guard
 against accidental use against a non-development database.
+
+All demo users share the same password: "seeddemo123"
 """
 
 from __future__ import annotations
@@ -35,9 +33,9 @@ from sqlalchemy import text
 from diodati_debtors.core.config import settings
 from diodati_debtors.db.session import get_session
 from diodati_debtors.models.enums import GroupRole
-from diodati_debtors.services import book_service, loan_service
+from diodati_debtors.services import auth_service, book_service, group_service, loan_service
 
-PLACEHOLDER_PASSWORD_HASH = "seed-placeholder-not-a-real-hash"
+DEMO_PASSWORD = "seeddemo123"
 REFERENCE_DATE = dt.date(2026, 7, 1)
 
 _TABLES_IN_TRUNCATE_ORDER = [
@@ -51,12 +49,52 @@ _TABLES_IN_TRUNCATE_ORDER = [
     "groups",
 ]
 
+# 40 classic gothic/romantic-era titles, ten per demo user.
+_BOOK_POOL = [
+    ("Frankenstein", "Mary Shelley"),
+    ("The Castle of Otranto", "Horace Walpole"),
+    ("The Monk", "Matthew Lewis"),
+    ("Vathek", "William Beckford"),
+    ("Melmoth the Wanderer", "Charles Maturin"),
+    ("The Mysteries of Udolpho", "Ann Radcliffe"),
+    ("Northanger Abbey", "Jane Austen"),
+    ("Wuthering Heights", "Emily Brontë"),
+    ("Jane Eyre", "Charlotte Brontë"),
+    ("The Turn of the Screw", "Henry James"),
+    ("Dracula", "Bram Stoker"),
+    ("The Vampyre", "John Polidori"),
+    ("Carmilla", "Sheridan Le Fanu"),
+    ("The Picture of Dorian Gray", "Oscar Wilde"),
+    ("Strange Case of Dr Jekyll and Mr Hyde", "Robert Louis Stevenson"),
+    ("The Fall of the House of Usher", "Edgar Allan Poe"),
+    ("Great Expectations", "Charles Dickens"),
+    ("Uncle Silas", "Sheridan Le Fanu"),
+    ("The Woman in White", "Wilkie Collins"),
+    ("The Moonstone", "Wilkie Collins"),
+    ("Zofloya", "Charlotte Dacre"),
+    ("The Italian", "Ann Radcliffe"),
+    ("Frankenstein in Baghdad", "Ahmed Saadawi"),
+    ("The Beetle", "Richard Marsh"),
+    ("The Haunting of Hill House", "Shirley Jackson"),
+    ("We Have Always Lived in the Castle", "Shirley Jackson"),
+    ("Rebecca", "Daphne du Maurier"),
+    ("The Historian", "Elizabeth Kostova"),
+    ("Interview with the Vampire", "Anne Rice"),
+    ("Something Wicked This Way Comes", "Ray Bradbury"),
+    ("The Shadow over Innsmouth", "H. P. Lovecraft"),
+    ("At the Mountains of Madness", "H. P. Lovecraft"),
+    ("The King in Yellow", "Robert W. Chambers"),
+    ("House of Leaves", "Mark Z. Danielewski"),
+    ("The Wolf's Hour", "Robert R. McCammon"),
+    ("Salem's Lot", "Stephen King"),
+    ("The Shining", "Stephen King"),
+    ("Coraline", "Neil Gaiman"),
+    ("The Graveyard Book", "Neil Gaiman"),
+    ("Mexican Gothic", "Silvia Moreno-Garcia"),
+]
+
 
 def _truncate_all_demo_tables() -> None:
-    """TRUNCATE, not DELETE — resets MySQL's auto-increment counters so
-    repeated seed runs produce identical, deterministic primary keys.
-    Foreign key checks are disabled only for the duration of this call.
-    """
     with get_session() as session:
         session.execute(text("SET FOREIGN_KEY_CHECKS=0"))
         for table in _TABLES_IN_TRUNCATE_ORDER:
@@ -64,35 +102,19 @@ def _truncate_all_demo_tables() -> None:
         session.execute(text("SET FOREIGN_KEY_CHECKS=1"))
 
 
-def _make_user(email: str, display_name: str) -> int:
-    from diodati_debtors.models.user import User
-
-    with get_session() as session:
-        user = User(
-            email=email,
-            password_hash=PLACEHOLDER_PASSWORD_HASH,
-            display_name=display_name,
-        )
-        session.add(user)
-        session.flush()
-        return user.id
-
-
-def _make_group(name: str, founder_id: int) -> int:
-    from diodati_debtors.models.group import Group
-
-    with get_session() as session:
-        group = Group(name=name, founder_id=founder_id)
-        session.add(group)
-        session.flush()
-        return group.id
-
-
-def _add_membership(user_id: int, group_id: int, role: GroupRole = GroupRole.MEMBER) -> None:
+def _add_membership(user_id: int, group_id: int, role: GroupRole) -> None:
     from diodati_debtors.models.group import GroupMembership
 
     with get_session() as session:
         session.add(GroupMembership(user_id=user_id, group_id=group_id, role=role))
+
+
+def _add_ten_books(owner_id: int, start_index: int) -> list:
+    titles = _BOOK_POOL[start_index : start_index + 10]
+    return [
+        book_service.create_book(owner_id=owner_id, title=title, author=author)
+        for title, author in titles
+    ]
 
 
 def seed() -> None:
@@ -104,57 +126,56 @@ def seed() -> None:
 
     _truncate_all_demo_tables()
 
-    # Users first — groups need a founder_id before they can be created.
-    liane_id = _make_user("liane@example.com", "Liane")
-    fabian_id = _make_user("fabian@example.com", "Fabian")
-    andy_id = _make_user("andy@example.com", "Andy")
+    # Users — real, working passwords via auth_service.
+    liane = auth_service.register(email="liane@example.com", password=DEMO_PASSWORD, display_name="Liane")
+    fabian = auth_service.register(email="fabian@example.com", password=DEMO_PASSWORD, display_name="Fabian")
+    andy = auth_service.register(email="andy@example.com", password=DEMO_PASSWORD, display_name="Andy")
+    marta = auth_service.register(email="marta@example.com", password=DEMO_PASSWORD, display_name="Marta")
 
-    # Groups — Liane founds the two she's most active in, Andy founds
-    # his own. Each founder gets a FOUNDER membership (the invariant
-    # from Domain Model v2), everyone else gets MEMBER.
-    diodati_id = _make_group("The Diodati Debtors", founder_id=liane_id)
-    romantics_id = _make_group("Late Romantics Reading Circle", founder_id=liane_id)
-    gothic_id = _make_group("Gothic Novel Society", founder_id=andy_id)
+    # Two clubs, deliberate overlap — Andy is founder of one, member of
+    # the other, so both roles are directly testable.
+    diodati = group_service.create_group(founder_id=liane.id, name="The Diodati Debtors")
+    gothic = group_service.create_group(founder_id=andy.id, name="Gothic Novel Society")
 
-    _add_membership(liane_id, diodati_id, role=GroupRole.FOUNDER)
-    _add_membership(liane_id, romantics_id, role=GroupRole.FOUNDER)
-    _add_membership(fabian_id, diodati_id, role=GroupRole.MEMBER)
-    _add_membership(andy_id, diodati_id, role=GroupRole.MEMBER)
-    _add_membership(andy_id, gothic_id, role=GroupRole.FOUNDER)
+    _add_membership(fabian.id, diodati.id, GroupRole.MEMBER)
+    _add_membership(andy.id, diodati.id, GroupRole.MEMBER)
+    _add_membership(fabian.id, gothic.id, GroupRole.MEMBER)
 
-    # Books — created through book_service, exactly as a user would.
-    frankenstein = book_service.create_book(
-        owner_id=liane_id, title="Frankenstein", author="Mary Shelley"
-    )
-    dracula = book_service.create_book(
-        owner_id=fabian_id, title="Dracula", author="Bram Stoker"
-    )
-    book_service.create_book(
-        owner_id=andy_id, title="The Vampyre", author="John Polidori"
-    )  # stays available — no loan created for this one
+    # Ten books each.
+    liane_books = _add_ten_books(liane.id, 0)
+    fabian_books = _add_ten_books(fabian.id, 10)
+    andy_books = _add_ten_books(andy.id, 20)
+    marta_books = _add_ten_books(marta.id, 30)
 
-    # Loans — through loan_service, covering available/active/returned.
+    # A handful of loans — active and returned, across different owners/borrowers.
     loan_service.create_loan(
-        book_id=frankenstein.id,
-        borrower_id=fabian_id,
-        due_date=REFERENCE_DATE + dt.timedelta(days=14),
-        loan_date=REFERENCE_DATE,
+        book_id=liane_books[0].id, borrower_id=fabian.id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14), loan_date=REFERENCE_DATE,
     )
-
     returned = loan_service.create_loan(
-        book_id=dracula.id,
-        borrower_id=andy_id,
-        due_date=REFERENCE_DATE + dt.timedelta(days=14),
-        loan_date=REFERENCE_DATE,
+        book_id=fabian_books[0].id, borrower_id=andy.id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14), loan_date=REFERENCE_DATE,
     )
-    loan_service.return_loan(
-        returned.id, return_date=REFERENCE_DATE + dt.timedelta(days=5)
+    loan_service.return_loan(returned.id, return_date=REFERENCE_DATE + dt.timedelta(days=5))
+    loan_service.create_loan(
+        book_id=andy_books[0].id, borrower_id=marta.id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14), loan_date=REFERENCE_DATE,
     )
 
-    print("Seed complete:")
-    print("  Groups: The Diodati Debtors (founder: Liane), Late Romantics Reading Circle (founder: Liane), Gothic Novel Society (founder: Andy)")
-    print("  Users: Liane (2 clubs, founder of both), Fabian (1 club), Andy (2 clubs, founder of one)")
-    print("  Books: Frankenstein (on loan), Dracula (returned), The Vampyre (available)")
+    # Deliberately left PENDING — real material for the Organize inbox.
+    group_service.request_to_join(user_id=marta.id, group_id=diodati.id)  # Liane can approve/decline
+    loan_service.request_to_borrow(book_id=marta_books[1].id, requester_id=fabian.id)  # Marta can approve/decline
+
+    print("Seed complete. All demo users share the password:", DEMO_PASSWORD)
+    print()
+    print("  liane@example.com  — founder of The Diodati Debtors, 10 books")
+    print("  fabian@example.com — member of both clubs, 10 books")
+    print("  andy@example.com   — founder of Gothic Novel Society, member of The Diodati Debtors, 10 books")
+    print("  marta@example.com  — member of Gothic Novel Society, 10 books, has a pending join request to The Diodati Debtors")
+    print()
+    print("Pending in Organize inbox:")
+    print("  Marta's join request to The Diodati Debtors — review as liane@example.com")
+    print("  Fabian's loan request for one of Marta's books — review as marta@example.com")
 
 
 if __name__ == "__main__":

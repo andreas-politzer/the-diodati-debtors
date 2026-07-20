@@ -5,17 +5,16 @@ logic. Service decides whether an action is allowed; State decides
 when to call the service and translates results/errors into UI-facing
 state; UI only renders state and triggers events.
 
-BookView is a typed dataclass, not a plain dict — Reflex needs
-explicit field types to compile rx.foreach over a nested list
-(borrower_options) correctly; an untyped list[dict] leaves every value
-as `Any`, which breaks exactly that case (rediscovered the hard way —
-see Roadmap.md lesson learned).
+BookView is a typed dataclass, not a plain dict — see Struktur.md
+lesson learned (rx.foreach over nested lists needs explicit typing).
 
-Tab state (Common/Personal) is a genuine UI concern: the data source
-changes, the presentation stays identical — one shared book list
-rendering, fed by different service calls depending on active_tab.
-Default tab is "personal" (works with zero clubs, per Domain Model v2
-principle 1), not "common".
+Tab state (Common/Personal): the data source changes, the presentation
+stays identical. Default tab is "personal" (works with zero clubs, per
+Domain Model v2 principle 1).
+
+Lending goes through the request/approval workflow
+(loan_service.request_to_borrow / approve_loan_request /
+decline_loan_request) instead of an instant "Lend to" picker.
 """
 
 from __future__ import annotations
@@ -39,11 +38,12 @@ class BookView:
     author: str | None = None
     isbn: str | None = None
     location: str | None = None
+    owner_name: str = ""
     is_on_loan: bool = False
     status: str = ""
     active_loan_id: int | None = None
-    borrower_id: int | None = None
-    borrower_options: list[str] = field(default_factory=list)
+    is_own_book: bool = False
+    has_pending_request: bool = False
 
 
 @dataclass
@@ -71,27 +71,77 @@ class LibraryState(rx.State):
     active_tab: str = "personal"  # "personal" | "common"
 
     books: list[BookView] = []
+    member_books: list[BookView] = []
+    viewing_member_name: str = ""
     users: list[dict] = []
-    user_options: list[str] = []
     detail_book: BookDetailView | None = None
     loan_history: list[LoanHistoryEntry] = []
     error_message: str = ""
+    info_message: str = ""
 
     def set_tab(self, tab: str):
         self.active_tab = tab
         return LibraryState.load_books
 
+    async def _build_book_views(self, book_results) -> list[BookView]:
+        """Shared enrichment logic: turn plain BookResults into
+        display-ready BookViews (loan status, request status,
+        ownership, owner name). Used by load_books() and
+        load_member_library() alike, so a member's library view and
+        the dashboard's Common Library render identically — one
+        rendering path, per Andy's request.
+        """
+        auth_state = await self.get_state(AuthState)
+        current_user_id = (
+            int(auth_state.current_user_id) if auth_state.is_logged_in else None
+        )
+
+        try:
+            user_results = user_service.list_users()
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return []
+        owner_names_by_id = {u.id: u.display_name for u in user_results}
+
+        book_ids = [b.id for b in book_results]
+        active_loans = loan_service.get_active_loans_for_books(book_ids)
+        pending_request_book_ids = (
+            loan_service.get_pending_request_book_ids_for_requester(
+                book_ids, current_user_id
+            )
+            if current_user_id is not None
+            else set()
+        )
+
+        views: list[BookView] = []
+        for book in book_results:
+            active_loan = active_loans.get(book.id)
+            views.append(
+                BookView(
+                    id=book.id,
+                    owner_id=book.owner_id,
+                    owner_name=owner_names_by_id.get(book.owner_id, f"User {book.owner_id}"),
+                    title=book.title,
+                    author=book.author,
+                    isbn=book.isbn,
+                    location=book.location,
+                    is_on_loan=active_loan is not None,
+                    status="on loan" if active_loan else "available",
+                    active_loan_id=active_loan.id if active_loan else None,
+                    is_own_book=(book.owner_id == current_user_id),
+                    has_pending_request=book.id in pending_request_book_ids,
+                )
+            )
+        return views
+
     async def load_books(self):
-        """Fetch books for the active tab plus loan status, in two
-        service calls total (not one per book — see
-        get_active_loans_for_books).
+        """Fetch books for the active tab (dashboard), enriched via
+        _build_book_views.
         """
         self.error_message = ""
         auth_state = await self.get_state(AuthState)
 
         try:
-            user_results = user_service.list_users()
-
             if self.active_tab == "personal":
                 if not auth_state.is_logged_in:
                     self.books = []
@@ -111,33 +161,31 @@ class LibraryState(rx.State):
             self.error_message = str(e)
             return
 
-        book_ids = [b.id for b in book_results]
-        active_loans = loan_service.get_active_loans_for_books(book_ids)
+        self.books = await self._build_book_views(book_results)
 
-        enriched: list[BookView] = []
-        for book in book_results:
-            active_loan = active_loans.get(book.id)
-            borrower_options = [
-                f"{u.id}: {u.display_name}"
-                for u in user_results
-                if u.id != book.owner_id
-            ]
-            enriched.append(
-                BookView(
-                    id=book.id,
-                    owner_id=book.owner_id,
-                    title=book.title,
-                    author=book.author,
-                    isbn=book.isbn,
-                    location=book.location,
-                    is_on_loan=active_loan is not None,
-                    status="on loan" if active_loan else "available",
-                    active_loan_id=active_loan.id if active_loan else None,
-                    borrower_id=active_loan.borrower_id if active_loan else None,
-                    borrower_options=borrower_options,
-                )
-            )
-        self.books = enriched
+    async def load_member_library(self):
+        """Populate member_books/viewing_member_name for
+        /members/[member_id] — same BookView rendering as the
+        dashboard, just scoped to one specific member's catalogue.
+        """
+        self.error_message = ""
+        self.member_books = []
+        self.viewing_member_name = ""
+        try:
+            member_id = int(self.member_id)
+        except (TypeError, ValueError):
+            self.error_message = "Invalid member id."
+            return
+
+        try:
+            member = user_service.get_user(member_id)
+            book_results = book_service.list_books_for_owner(member_id)
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
+
+        self.viewing_member_name = member.display_name
+        self.member_books = await self._build_book_views(book_results)
 
     def load_users(self):
         try:
@@ -146,7 +194,6 @@ class LibraryState(rx.State):
             self.error_message = str(e)
             return
         self.users = [u.to_dict() for u in user_results]
-        self.user_options = [f"{u.id}: {u.display_name}" for u in user_results]
 
     async def load_all(self):
         await self.load_books()
@@ -199,38 +246,42 @@ class LibraryState(rx.State):
             )
         self.loan_history = history
 
-    async def lend_book(self, book_id: int, selected_user_option: str, due_in_days: int = 14):
+    async def request_to_borrow(self, book_id: int):
         self.error_message = ""
-        if not selected_user_option:
-            self.error_message = "Select a borrower first."
+        self.info_message = ""
+        auth_state = await self.get_state(AuthState)
+        if not auth_state.is_logged_in:
+            self.error_message = "You must be logged in to request a book."
             return
         try:
-            borrower_id = int(selected_user_option.split(":", 1)[0].strip())
-        except (ValueError, IndexError):
-            self.error_message = "Invalid borrower selection."
-            return
-        try:
-            loan_service.create_loan(
-                book_id=int(book_id),
-                borrower_id=borrower_id,
-                due_date=dt.date.today() + dt.timedelta(days=due_in_days),
+            loan_service.request_to_borrow(
+                book_id=int(book_id), requester_id=int(auth_state.current_user_id)
             )
         except DiodatiError as e:
             self.error_message = str(e)
         else:
+            self.info_message = "Request sent — waiting for the owner's approval."
             await self.load_books()
+            if self.member_id:
+                await self.load_member_library()
 
-    async def return_book(self, loan_id: int | None):
+    async def return_book(self, book: BookView):
         self.error_message = ""
-        if loan_id is None:
+        self.info_message = ""
+        if not book.is_own_book:
+            self.error_message = "Only the book's owner can mark it as returned."
+            return
+        if book.active_loan_id is None:
             self.error_message = "No active loan to return."
             return
         try:
-            loan_service.return_loan(int(loan_id))
+            loan_service.return_loan(book.active_loan_id)
         except DiodatiError as e:
             self.error_message = str(e)
         else:
             await self.load_books()
+            if self.member_id:
+                await self.load_member_library()
 
     async def submit_new_book(self, form_data: dict):
         self.error_message = ""

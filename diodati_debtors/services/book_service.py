@@ -22,11 +22,13 @@ from ..core.exceptions import (
     BookHasLoanHistoryError,
     BookHasPendingLoanRequestError,
     InvalidBookDataError,
+    InvalidSearchQueryError,
     IsbnNotFoundError,
     NotAuthorizedError,
     NotFoundError,
 )
 from .external.open_library_client import fetch_book_by_isbn
+from .external.open_library_search_client import search_books_raw
 from ..core.normalize import blank_to_none
 from ..db.session import get_session
 from ..models.book import Book
@@ -48,6 +50,25 @@ class BookMetadataResult:
     publisher: str | None
     publish_date: str | None
     cover_url: str | None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+    
+@dataclass(frozen=True)
+class BookSearchResult:
+    """One possible match from a title search — distinct from
+    BookMetadataResult ("a resolved book"). Multiple of these may exist
+    for the same underlying work (editions, translations, revisions);
+    the user picks one, never an automatic first choice.
+    """
+
+    work_key: str
+    title: str
+    author: str | None
+    publish_year: int | None
+    edition_count: int | None
+    cover_id: int | None
+    isbn: str | None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -146,6 +167,42 @@ def lookup_isbn(isbn: str) -> BookMetadataResult:
         publish_date=raw.get("publish_date"),
         cover_url=cover_url,
     )
+
+def search_books(query: str, limit: int = 20) -> list[BookSearchResult]:
+    """Search Open Library by free text (title, author, etc.).
+
+    Returns a list of candidate matches — possibly empty (genuinely no
+    results is not an error). The caller always presents results for
+    the user to choose from; this function never guesses a "best" one.
+
+    Raises:
+        InvalidSearchQueryError: if query is blank.
+
+    Network/timeout failures propagate as requests.RequestException —
+    not translated into a domain exception, per the Service Contract.
+    """
+    stripped_query = blank_to_none(query)
+    if stripped_query is None:
+        raise InvalidSearchQueryError("Search query must not be blank.")
+
+    docs = search_books_raw(stripped_query, limit=limit)
+
+    results: list[BookSearchResult] = []
+    for doc in docs:
+        author_names = doc.get("author_name") or []
+        isbns = doc.get("isbn") or []
+        results.append(
+            BookSearchResult(
+                work_key=doc.get("key", ""),
+                title=doc.get("title", ""),
+                author=", ".join(author_names) if author_names else None,
+                publish_year=doc.get("first_publish_year"),
+                edition_count=doc.get("edition_count"),
+                cover_id=doc.get("cover_i"),
+                isbn=isbns[0] if isbns else None,
+            )
+        )
+    return results
 
 
 def update_book(
@@ -272,5 +329,7 @@ __all__ = [
     "list_books_for_group",
     "BookMetadataResult",
     "lookup_isbn",
+    "BookSearchResult",
+    "search_books",
 
 ]

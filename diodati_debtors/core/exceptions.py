@@ -125,6 +125,12 @@ class IsbnNotFoundError(BusinessRuleViolation):
     represented as domain exceptions.
     """
 
+class InvalidSearchQueryError(BusinessRuleViolation):
+    """Raised when a title search query is blank. An empty results
+    list (genuinely no matches found) is NOT an exception — that's a
+    normal, displayable outcome, not a business-rule violation.
+    """
+
 
 __all__ = [
     "DiodatiError",
@@ -147,4 +153,5 @@ __all__ = [
     "BookHasLoanHistoryError",
     "BookHasPendingLoanRequestError",
     "IsbnNotFoundError",
+    "InvalidSearchQueryError",
 ]

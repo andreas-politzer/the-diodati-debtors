@@ -22,6 +22,7 @@ from diodati_debtors.models.group import Group, GroupMembership
 from diodati_debtors.models.user import User
 from diodati_debtors.services import book_service, loan_service
 from diodati_debtors.core.exceptions import IsbnNotFoundError
+from diodati_debtors.core.exceptions import InvalidSearchQueryError
 
 
 def _make_user(db, email: str) -> int:
@@ -249,6 +250,62 @@ def test_lookup_isbn_handles_missing_optional_fields_gracefully(monkeypatch):
     assert result.publisher is None
     assert result.publish_date is None
     assert result.cover_url is None
+
+def test_search_books_returns_results_when_found(monkeypatch):
+    def fake_search(query, limit=20):
+        return [
+            {
+                "key": "/works/OL27448W",
+                "title": "Der Untertan",
+                "author_name": ["Heinrich Mann"],
+                "first_publish_year": 1918,
+                "cover_i": 12345,
+                "edition_count": 42,
+                "isbn": ["3423002565"],
+            }
+        ]
+
+    monkeypatch.setattr(book_service, "search_books_raw", fake_search)
+
+    results = book_service.search_books("Der Untertan")
+
+    assert len(results) == 1
+    assert results[0].title == "Der Untertan"
+    assert results[0].author == "Heinrich Mann"
+    assert results[0].publish_year == 1918
+    assert results[0].edition_count == 42
+    assert results[0].cover_id == 12345
+    assert results[0].isbn == "3423002565"
+    assert results[0].work_key == "/works/OL27448W"
+
+
+def test_search_books_returns_empty_list_when_no_matches(monkeypatch):
+    monkeypatch.setattr(book_service, "search_books_raw", lambda query, limit=20: [])
+
+    results = book_service.search_books("some nonexistent gibberish title xyz")
+
+    assert results == []
+
+
+def test_search_books_rejects_blank_query():
+    with pytest.raises(InvalidSearchQueryError):
+        book_service.search_books("   ")
+
+
+def test_search_books_handles_missing_optional_fields_gracefully(monkeypatch):
+    def fake_search(query, limit=20):
+        return [{"key": "/works/OL1W", "title": "Minimal Book"}]  # no author, year, cover, isbn
+
+    monkeypatch.setattr(book_service, "search_books_raw", fake_search)
+
+    results = book_service.search_books("Minimal Book")
+
+    assert results[0].title == "Minimal Book"
+    assert results[0].author is None
+    assert results[0].publish_year is None
+    assert results[0].edition_count is None
+    assert results[0].cover_id is None
+    assert results[0].isbn is None
 
 
 def test_book_service_has_no_reflex_dependency():

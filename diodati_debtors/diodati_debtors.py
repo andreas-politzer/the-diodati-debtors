@@ -14,6 +14,7 @@ from .ui.pages.add_book import add_book
 from .ui.pages.organize import organize
 from .ui.pages.members import members
 from .ui.pages.member_detail import member_detail
+from .ui.pages.edit_book import edit_book
 from .state.auth_state import AuthState
 from .state.group_state import GroupState
 from .state.library_state import LibraryState
@@ -66,4 +67,9 @@ app.add_page(
     member_detail,
     route="/members/[member_id]",
     on_load=[AuthState.check_auth, LibraryState.load_member_library],
+)
+app.add_page(
+    edit_book,
+    route="/book/[book_id]/edit",
+    on_load=[AuthState.check_auth, LibraryState.load_book_detail],
 )

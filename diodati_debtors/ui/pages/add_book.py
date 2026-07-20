@@ -1,16 +1,10 @@
-"""Add Book page — adds to the logged-in user's own catalogue.
-
-No owner picker: since this always means "add a book to MY personal
-library", the owner is the logged-in user, never a choice. (Earlier
-versions of this page had an owner dropdown, left over from before
-auth_service existed — removed now that it's genuinely redundant.)
-"""
+"""Add Book page — create mode of the shared BookForm."""
 
 from __future__ import annotations
 
 import reflex as rx
 
-from ..components.button import primary_button
+from ..components.book_form import book_form
 from ..components.label import page_title
 from ..components.shell import shell
 from ..tokens import Color, Font, Type
@@ -29,18 +23,7 @@ def add_book() -> rx.Component:
                 color=Color.warning,
             ),
         ),
-        rx.form(
-            rx.vstack(
-                rx.input(placeholder="Title", name="title", required=True),
-                rx.input(placeholder="Author", name="author"),
-                rx.input(placeholder="ISBN", name="isbn"),
-                rx.input(placeholder="Location (optional)", name="location"),
-                primary_button("Add book", type="submit"),
-                spacing="3",
-            ),
-            on_submit=LibraryState.submit_new_book,
-            reset_on_submit=True,
-        ),
+        book_form(submit_label="Add book"),
         rx.link(
             "☞ Back to library", href="/dashboard", margin_top="1rem", display="block"
         ),

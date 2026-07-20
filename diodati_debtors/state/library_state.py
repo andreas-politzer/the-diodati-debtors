@@ -5,16 +5,17 @@ logic. Service decides whether an action is allowed; State decides
 when to call the service and translates results/errors into UI-facing
 state; UI only renders state and triggers events.
 
-BookView is a typed dataclass, not a plain dict — see Struktur.md
-lesson learned (rx.foreach over nested lists needs explicit typing).
+submit_book_form() unifies create/edit: if the submitted book_id is
+present, it updates; otherwise it creates. One shared BookForm
+component (ui/components/book_form.py) drives both modes, per Codex's
+review — no duplicated Add/Edit forms.
 
-Tab state (Common/Personal): the data source changes, the presentation
-stays identical. Default tab is "personal" (works with zero clubs, per
-Domain Model v2 principle 1).
-
-Lending goes through the request/approval workflow
-(loan_service.request_to_borrow / approve_loan_request /
-decline_loan_request) instead of an instant "Lend to" picker.
+Known, accepted gap: edit/delete are hidden from non-owners in the UI
+(book_action_bar only shows them when is_own_book), but the edit page
+itself has no additional server-side page guard beyond what
+book_service already enforces (NotAuthorizedError on submit). A
+non-owner typing the URL directly would see the form but get an error
+on submit, not be redirected away. Acceptable for this project's scale.
 """
 
 from __future__ import annotations
@@ -78,19 +79,13 @@ class LibraryState(rx.State):
     loan_history: list[LoanHistoryEntry] = []
     error_message: str = ""
     info_message: str = ""
+    pending_delete_book_id: int = 0  # 0 == nothing pending
 
     def set_tab(self, tab: str):
         self.active_tab = tab
         return LibraryState.load_books
 
     async def _build_book_views(self, book_results) -> list[BookView]:
-        """Shared enrichment logic: turn plain BookResults into
-        display-ready BookViews (loan status, request status,
-        ownership, owner name). Used by load_books() and
-        load_member_library() alike, so a member's library view and
-        the dashboard's Common Library render identically — one
-        rendering path, per Andy's request.
-        """
         auth_state = await self.get_state(AuthState)
         current_user_id = (
             int(auth_state.current_user_id) if auth_state.is_logged_in else None
@@ -135,9 +130,6 @@ class LibraryState(rx.State):
         return views
 
     async def load_books(self):
-        """Fetch books for the active tab (dashboard), enriched via
-        _build_book_views.
-        """
         self.error_message = ""
         auth_state = await self.get_state(AuthState)
 
@@ -164,10 +156,6 @@ class LibraryState(rx.State):
         self.books = await self._build_book_views(book_results)
 
     async def load_member_library(self):
-        """Populate member_books/viewing_member_name for
-        /members/[member_id] — same BookView rendering as the
-        dashboard, just scoped to one specific member's catalogue.
-        """
         self.error_message = ""
         self.member_books = []
         self.viewing_member_name = ""
@@ -262,8 +250,6 @@ class LibraryState(rx.State):
         else:
             self.info_message = "Request sent — waiting for the owner's approval."
             await self.load_books()
-            if self.member_id:
-                await self.load_member_library()
 
     async def return_book(self, book: BookView):
         self.error_message = ""
@@ -280,27 +266,72 @@ class LibraryState(rx.State):
             self.error_message = str(e)
         else:
             await self.load_books()
-            if self.member_id:
-                await self.load_member_library()
 
-    async def submit_new_book(self, form_data: dict):
+    async def submit_book_form(self, form_data: dict):
+        """Handles both Add Book and Edit Book — if form_data contains
+        a non-empty book_id, updates that book; otherwise creates a
+        new one. One shared form, one shared handler. Redirects on
+        success: create → Dashboard, edit → the book's Detail page.
+        """
         self.error_message = ""
         auth_state = await self.get_state(AuthState)
         if not auth_state.is_logged_in:
-            self.error_message = "You must be logged in to add a book."
+            self.error_message = "You must be logged in."
+            return
+
+        book_id_raw = form_data.get("book_id", "")
+        try:
+            if book_id_raw:
+                book_service.update_book(
+                    int(book_id_raw),
+                    owner_id=int(auth_state.current_user_id),
+                    title=form_data.get("title", ""),
+                    author=form_data.get("author", ""),
+                    isbn=form_data.get("isbn", ""),
+                    location=form_data.get("location", ""),
+                )
+                self.info_message = "Book updated."
+            else:
+                book_service.create_book(
+                    owner_id=int(auth_state.current_user_id),
+                    title=form_data.get("title", ""),
+                    author=form_data.get("author", ""),
+                    isbn=form_data.get("isbn", ""),
+                    location=form_data.get("location", ""),
+                )
+                self.info_message = "Book added."
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
+
+        await self.load_books()
+        if book_id_raw:
+            return rx.redirect(f"/book/{book_id_raw}")
+        return rx.redirect("/dashboard")
+
+    def confirm_delete(self, book_id: int):
+        self.pending_delete_book_id = int(book_id)
+
+    def cancel_delete(self):
+        self.pending_delete_book_id = 0
+
+    async def delete_book(self, book_id: int):
+        self.error_message = ""
+        self.info_message = ""
+        auth_state = await self.get_state(AuthState)
+        if not auth_state.is_logged_in:
+            self.error_message = "You must be logged in."
             return
         try:
-            book_service.create_book(
-                owner_id=int(auth_state.current_user_id),
-                title=form_data.get("title", ""),
-                author=form_data.get("author", ""),
-                isbn=form_data.get("isbn", ""),
-                location=form_data.get("location", ""),
+            book_service.delete_book(
+                int(book_id), owner_id=int(auth_state.current_user_id)
             )
         except DiodatiError as e:
             self.error_message = str(e)
-        else:
-            await self.load_books()
+            return
+        self.pending_delete_book_id = 0
+        await self.load_books()
+        return rx.redirect("/dashboard")
 
 
 __all__ = ["LibraryState", "BookView", "LoanHistoryEntry", "BookDetailView"]

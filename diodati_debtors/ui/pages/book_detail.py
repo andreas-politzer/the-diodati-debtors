@@ -1,5 +1,5 @@
-"""Book detail page — minimal Phase 2 version, shows what we store
-ourselves (title, author, ISBN as plain text, owner, loan history).
+"""Book detail page — minimal version, shows what we store ourselves
+(title, author, ISBN, location as plain text, owner, loan history).
 
 Deliberately lean: once title/ISBN search-and-fetch from Open Library
 lands, the "add/enrich a book" flow changes shape substantially, and
@@ -56,12 +56,16 @@ def book_detail() -> rx.Component:
                     LibraryState.detail_book.isbn,
                     meta_text(f"ISBN: {LibraryState.detail_book.isbn}"),
                 ),
+                rx.cond(
+                    LibraryState.detail_book.location,
+                    meta_text(f"Location: {LibraryState.detail_book.location}"),
+                ),
                 divider(),
                 page_title("Loan history"),
                 rx.foreach(LibraryState.loan_history, _loan_history_row),
             ),
         ),
-        rx.link("Back to library", href="/dashboard"),
+        rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
         max_width="40rem",
     )
 

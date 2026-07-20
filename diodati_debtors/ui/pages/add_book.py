@@ -1,8 +1,9 @@
-"""Add Book page — closes the CRUD loop for the library bounded context.
+"""Add Book page — adds to the logged-in user's own catalogue.
 
-Owner selection is the same "temporary adapter" pattern as the
-borrower picker on the dashboard: a plain dropdown of all users, until
-auth_service exists and a book is simply owned by the logged-in user.
+No owner picker: since this always means "add a book to MY personal
+library", the owner is the logged-in user, never a choice. (Earlier
+versions of this page had an owner dropdown, left over from before
+auth_service existed — removed now that it's genuinely redundant.)
 """
 
 from __future__ import annotations
@@ -33,11 +34,7 @@ def add_book() -> rx.Component:
                 rx.input(placeholder="Title", name="title", required=True),
                 rx.input(placeholder="Author", name="author"),
                 rx.input(placeholder="ISBN", name="isbn"),
-                rx.select(
-                    LibraryState.user_options,
-                    placeholder="Owner...",
-                    name="owner_id",
-                ),
+                rx.input(placeholder="Location (optional)", name="location"),
                 primary_button("Add book", type="submit"),
                 spacing="3",
             ),

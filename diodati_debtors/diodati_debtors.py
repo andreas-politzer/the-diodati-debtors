@@ -7,10 +7,12 @@ from .ui.pages.style_preview import style_preview
 from .ui.pages.landing import landing
 from .ui.pages.login import login
 from .ui.pages.register import register
+from .ui.pages.clubs import clubs
 from .ui.pages.dashboard import dashboard
 from .ui.pages.book_detail import book_detail
 from .ui.pages.add_book import add_book
 from .state.auth_state import AuthState
+from .state.group_state import GroupState
 from .state.library_state import LibraryState
 
 
@@ -27,9 +29,14 @@ app.add_page(style_preview, route="/style-preview")
 app.add_page(login, route="/login", on_load=AuthState.redirect_if_logged_in)
 app.add_page(register, route="/register", on_load=AuthState.redirect_if_logged_in)
 app.add_page(
+    clubs,
+    route="/clubs",
+    on_load=[AuthState.check_auth, GroupState.load_all],
+)
+app.add_page(
     dashboard,
     route="/dashboard",
-    on_load=[AuthState.check_auth, LibraryState.load_all],
+    on_load=[AuthState.check_auth, GroupState.load_my_groups, LibraryState.load_all],
 )
 app.add_page(
     book_detail,

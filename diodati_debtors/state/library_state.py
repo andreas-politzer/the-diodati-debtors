@@ -5,10 +5,17 @@ logic. Service decides whether an action is allowed; State decides
 when to call the service and translates results/errors into UI-facing
 state; UI only renders state and triggers events.
 
-Note (per Codex's review, 19.07.): this class covers the "Library"
-bounded context (books, loans). Once auth/groups/posts arrive, split
-into separate State classes rather than growing this one further —
-see Struktur.md.
+BookView is a typed dataclass, not a plain dict — Reflex needs
+explicit field types to compile rx.foreach over a nested list
+(borrower_options) correctly; an untyped list[dict] leaves every value
+as `Any`, which breaks exactly that case (rediscovered the hard way —
+see Roadmap.md lesson learned).
+
+Tab state (Common/Personal) is a genuine UI concern: the data source
+changes, the presentation stays identical — one shared book list
+rendering, fed by different service calls depending on active_tab.
+Default tab is "personal" (works with zero clubs, per Domain Model v2
+principle 1), not "common".
 """
 
 from __future__ import annotations
@@ -20,6 +27,8 @@ import reflex as rx
 
 from ..core.exceptions import DiodatiError
 from ..services import book_service, loan_service, user_service
+from .auth_state import AuthState
+from .group_state import GroupState
 
 
 @dataclass
@@ -29,6 +38,7 @@ class BookView:
     title: str
     author: str | None = None
     isbn: str | None = None
+    location: str | None = None
     is_on_loan: bool = False
     status: str = ""
     active_loan_id: int | None = None
@@ -52,11 +62,14 @@ class BookDetailView:
     title: str
     author: str | None = None
     isbn: str | None = None
+    location: str | None = None
     owner_name: str = ""
     status: str = ""
 
 
 class LibraryState(rx.State):
+    active_tab: str = "personal"  # "personal" | "common"
+
     books: list[BookView] = []
     users: list[dict] = []
     user_options: list[str] = []
@@ -64,19 +77,36 @@ class LibraryState(rx.State):
     loan_history: list[LoanHistoryEntry] = []
     error_message: str = ""
 
-    def load_books(self) -> None:
-        """Fetch all books plus their loan status in two service calls
-        total (not one per book — see get_active_loans_for_books).
+    def set_tab(self, tab: str):
+        self.active_tab = tab
+        return LibraryState.load_books
 
-        Also fetches users here (in addition to load_users) to build
-        each book's borrower_options, excluding that book's owner —
-        this small duplication keeps load_books self-contained and
-        correct even if called without load_users first.
+    async def load_books(self):
+        """Fetch books for the active tab plus loan status, in two
+        service calls total (not one per book — see
+        get_active_loans_for_books).
         """
         self.error_message = ""
+        auth_state = await self.get_state(AuthState)
+
         try:
-            book_results = book_service.list_books()
             user_results = user_service.list_users()
+
+            if self.active_tab == "personal":
+                if not auth_state.is_logged_in:
+                    self.books = []
+                    return
+                book_results = book_service.list_books_for_owner(
+                    int(auth_state.current_user_id)
+                )
+            else:
+                group_state = await self.get_state(GroupState)
+                if not group_state.current_group_id:
+                    self.books = []
+                    return
+                book_results = book_service.list_books_for_group(
+                    int(group_state.current_group_id)
+                )
         except DiodatiError as e:
             self.error_message = str(e)
             return
@@ -87,9 +117,6 @@ class LibraryState(rx.State):
         enriched: list[BookView] = []
         for book in book_results:
             active_loan = active_loans.get(book.id)
-            # A book's owner cannot borrow their own book. Real
-            # group-scoped visibility (who may even see/borrow this
-            # book) is deferred until membership-aware pages exist.
             borrower_options = [
                 f"{u.id}: {u.display_name}"
                 for u in user_results
@@ -102,6 +129,7 @@ class LibraryState(rx.State):
                     title=book.title,
                     author=book.author,
                     isbn=book.isbn,
+                    location=book.location,
                     is_on_loan=active_loan is not None,
                     status="on loan" if active_loan else "available",
                     active_loan_id=active_loan.id if active_loan else None,
@@ -111,11 +139,7 @@ class LibraryState(rx.State):
             )
         self.books = enriched
 
-    def load_users(self) -> None:
-        """Fetch all users. Populates both the plain directory (self.users)
-        and a flat "id: name" picker list (self.user_options) — used by
-        the Add Book form's owner picker.
-        """
+    def load_users(self):
         try:
             user_results = user_service.list_users()
         except DiodatiError as e:
@@ -124,17 +148,11 @@ class LibraryState(rx.State):
         self.users = [u.to_dict() for u in user_results]
         self.user_options = [f"{u.id}: {u.display_name}" for u in user_results]
 
-    def load_all(self) -> None:
-        self.load_books()
+    async def load_all(self):
+        await self.load_books()
         self.load_users()
 
-    def load_book_detail(self) -> None:
-        """Populate detail_book/loan_history for /book/[book_id].
-
-        N+1 borrower lookups here are fine at this scale (one book's
-        loan history, not a list of hundreds) — unlike load_books(),
-        this isn't the pattern Codex flagged earlier.
-        """
+    async def load_book_detail(self):
         self.error_message = ""
         self.detail_book = None
         self.loan_history = []
@@ -158,6 +176,7 @@ class LibraryState(rx.State):
             title=book.title,
             author=book.author,
             isbn=book.isbn,
+            location=book.location,
             owner_name=owner.display_name,
             status="on loan" if active_loan else "available",
         )
@@ -180,11 +199,7 @@ class LibraryState(rx.State):
             )
         self.loan_history = history
 
-    def lend_book(self, book_id: int, selected_user_option: str, due_in_days: int = 14) -> None:
-        """Attempt to lend a book. `selected_user_option` is one of the
-        "id: name" strings from a book's borrower_options — parsed back
-        into an int id here, since the picker is a plain string select.
-        """
+    async def lend_book(self, book_id: int, selected_user_option: str, due_in_days: int = 14):
         self.error_message = ""
         if not selected_user_option:
             self.error_message = "Select a borrower first."
@@ -203,12 +218,9 @@ class LibraryState(rx.State):
         except DiodatiError as e:
             self.error_message = str(e)
         else:
-            self.load_books()
+            await self.load_books()
 
-    def return_book(self, loan_id: int | None) -> None:
-        """Attempt to return a loan. Same exception-translation pattern
-        as lend_book.
-        """
+    async def return_book(self, loan_id: int | None):
         self.error_message = ""
         if loan_id is None:
             self.error_message = "No active loan to return."
@@ -218,32 +230,26 @@ class LibraryState(rx.State):
         except DiodatiError as e:
             self.error_message = str(e)
         else:
-            self.load_books()
+            await self.load_books()
 
-    def submit_new_book(self, form_data: dict) -> None:
-        """Handle the Add Book form. Owner selection is the same
-        temporary-adapter pattern as the borrower picker — a plain
-        dropdown of all users, until auth_service exists and a book is
-        simply owned by the logged-in user.
-        """
+    async def submit_new_book(self, form_data: dict):
         self.error_message = ""
-        owner_option = form_data.get("owner_id", "")
-        try:
-            owner_id = int(owner_option.split(":", 1)[0].strip())
-        except (ValueError, IndexError):
-            self.error_message = "Select an owner first."
+        auth_state = await self.get_state(AuthState)
+        if not auth_state.is_logged_in:
+            self.error_message = "You must be logged in to add a book."
             return
         try:
             book_service.create_book(
-                owner_id=owner_id,
+                owner_id=int(auth_state.current_user_id),
                 title=form_data.get("title", ""),
                 author=form_data.get("author", ""),
                 isbn=form_data.get("isbn", ""),
+                location=form_data.get("location", ""),
             )
         except DiodatiError as e:
             self.error_message = str(e)
         else:
-            self.load_books()
+            await self.load_books()
 
 
-__all__ = ["LibraryState", "BookView", "BookDetailView", "LoanHistoryEntry"]
+__all__ = ["LibraryState", "BookView", "LoanHistoryEntry", "BookDetailView"]

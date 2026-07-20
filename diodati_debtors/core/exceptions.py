@@ -96,6 +96,15 @@ class NotAuthorizedError(BusinessRuleViolation):
     group's founder/admin.
     """
 
+class CannotRequestOwnBookError(BusinessRuleViolation):
+    """Raised when a user attempts to request their own book."""
+
+
+class DuplicateLoanRequestError(BusinessRuleViolation):
+    """Raised when the same user already has a pending LoanRequest for
+    the same book.
+    """
+
 
 __all__ = [
     "DiodatiError",
@@ -113,4 +122,6 @@ __all__ = [
     "DuplicateJoinRequestError",
     "RequestNotPendingError",
     "NotAuthorizedError",
+    "CannotRequestOwnBookError",
+    "DuplicateLoanRequestError",
 ]

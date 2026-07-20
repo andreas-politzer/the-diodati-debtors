@@ -22,9 +22,11 @@ from ..core.exceptions import (
     BookHasLoanHistoryError,
     BookHasPendingLoanRequestError,
     InvalidBookDataError,
+    IsbnNotFoundError,
     NotAuthorizedError,
     NotFoundError,
 )
+from .external.open_library_client import fetch_book_by_isbn
 from ..core.normalize import blank_to_none
 from ..db.session import get_session
 from ..models.book import Book
@@ -34,6 +36,21 @@ from ..models.loan import Loan
 from ..models.loan_request import LoanRequest
 from ..models.user import User
 
+@dataclass(frozen=True)
+class BookMetadataResult:
+    """Metadata fetched from Open Library — read-only, never
+    persisted automatically. The caller (state/UI) decides whether to
+    use it to prefill the Add Book form.
+    """
+
+    title: str
+    author: str | None
+    publisher: str | None
+    publish_date: str | None
+    cover_url: str | None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 @dataclass(frozen=True)
 class BookResult:
@@ -88,6 +105,41 @@ def create_book(
         session.add(book)
         session.flush()
         return _to_result(book)
+    
+def lookup_isbn(isbn: str) -> BookMetadataResult:
+    """Fetch book metadata from Open Library for a given ISBN.
+
+    Raises:
+        IsbnNotFoundError: if Open Library has no record for this ISBN.
+
+    Network/timeout failures propagate as requests.RequestException —
+    not translated into a domain exception here, per the Service
+    Contract (infrastructure failures stay infrastructure failures).
+    """
+    stripped_isbn = blank_to_none(isbn)
+    if stripped_isbn is None:
+        raise IsbnNotFoundError("No ISBN provided.")
+
+    raw = fetch_book_by_isbn(stripped_isbn)
+    if raw is None:
+        raise IsbnNotFoundError(f"No Open Library record found for ISBN {stripped_isbn}.")
+
+    authors = raw.get("authors") or []
+    author_names = ", ".join(a.get("name", "") for a in authors if a.get("name"))
+
+    publishers = raw.get("publishers") or []
+    publisher_name = publishers[0].get("name") if publishers else None
+
+    cover = raw.get("cover") or {}
+    cover_url = cover.get("medium") or cover.get("small") or cover.get("large")
+
+    return BookMetadataResult(
+        title=raw.get("title", ""),
+        author=author_names or None,
+        publisher=publisher_name,
+        publish_date=raw.get("publish_date"),
+        cover_url=cover_url,
+    )
 
 
 def update_book(
@@ -212,4 +264,7 @@ __all__ = [
     "list_books",
     "list_books_for_owner",
     "list_books_for_group",
+    "BookMetadataResult",
+    "lookup_isbn",
+
 ]

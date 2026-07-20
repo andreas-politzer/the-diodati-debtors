@@ -117,6 +117,14 @@ class BookHasPendingLoanRequestError(BusinessRuleViolation):
     loan request — the request should be declined/cancelled first.
     """
 
+class IsbnNotFoundError(BusinessRuleViolation):
+    """Raised when an ISBN has no matching record in Open Library.
+    Network/timeout failures are NOT wrapped here — they propagate as
+    their own natural exception (e.g. requests.RequestException), per
+    the Service Contract's rule that infrastructure failures are never
+    represented as domain exceptions.
+    """
+
 
 __all__ = [
     "DiodatiError",
@@ -138,4 +146,5 @@ __all__ = [
     "DuplicateLoanRequestError",
     "BookHasLoanHistoryError",
     "BookHasPendingLoanRequestError",
+    "IsbnNotFoundError",
 ]

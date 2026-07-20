@@ -21,6 +21,7 @@ from diodati_debtors.core.exceptions import (
 from diodati_debtors.models.group import Group, GroupMembership
 from diodati_debtors.models.user import User
 from diodati_debtors.services import book_service, loan_service
+from diodati_debtors.core.exceptions import IsbnNotFoundError
 
 
 def _make_user(db, email: str) -> int:
@@ -201,6 +202,53 @@ def test_delete_book_rejects_when_pending_loan_request_exists(db):
 
     with pytest.raises(BookHasPendingLoanRequestError):
         book_service.delete_book(book.id, owner_id=owner_id)
+
+def test_lookup_isbn_returns_metadata_when_found(monkeypatch):
+    def fake_fetch(isbn):
+        return {
+            "title": "Frankenstein",
+            "authors": [{"name": "Mary Shelley"}],
+            "publishers": [{"name": "Lackington, Hughes, Harding, Mavor & Jones"}],
+            "publish_date": "1818",
+            "cover": {"medium": "https://covers.example.com/frankenstein-m.jpg"},
+        }
+
+    monkeypatch.setattr(book_service, "fetch_book_by_isbn", fake_fetch)
+
+    result = book_service.lookup_isbn("9780141439471")
+
+    assert result.title == "Frankenstein"
+    assert result.author == "Mary Shelley"
+    assert result.publisher == "Lackington, Hughes, Harding, Mavor & Jones"
+    assert result.publish_date == "1818"
+    assert result.cover_url == "https://covers.example.com/frankenstein-m.jpg"
+
+
+def test_lookup_isbn_raises_when_not_found(monkeypatch):
+    monkeypatch.setattr(book_service, "fetch_book_by_isbn", lambda isbn: None)
+
+    with pytest.raises(IsbnNotFoundError):
+        book_service.lookup_isbn("0000000000")
+
+
+def test_lookup_isbn_rejects_blank_isbn():
+    with pytest.raises(IsbnNotFoundError):
+        book_service.lookup_isbn("   ")
+
+
+def test_lookup_isbn_handles_missing_optional_fields_gracefully(monkeypatch):
+    def fake_fetch(isbn):
+        return {"title": "Some Book"}  # no authors, publishers, cover, publish_date
+
+    monkeypatch.setattr(book_service, "fetch_book_by_isbn", fake_fetch)
+
+    result = book_service.lookup_isbn("1234567890")
+
+    assert result.title == "Some Book"
+    assert result.author is None
+    assert result.publisher is None
+    assert result.publish_date is None
+    assert result.cover_url is None
 
 
 def test_book_service_has_no_reflex_dependency():

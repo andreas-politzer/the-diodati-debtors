@@ -10,7 +10,7 @@ who haven't returned a book yet.
 
 ## Status
 
-**Working and tested (48 passing unit tests):**
+**Working and tested (59 passing unit tests):**
 - Full auth flow: registration, login, session cookie
 - Multi-club membership: found a club (founder invariant enforced),
   browse and request to join other clubs, founder approves/declines,
@@ -20,28 +20,30 @@ who haven't returned a book yet.
 - Personal Library (always available, no club required) and Common
   Club Library (all books visible to a selected club's members) as
   tabs on one dashboard, with a club switcher directly on the Common
-  tab (no page navigation needed to change which club you're viewing)
-  — proper empty states for every combination (no books yet, no club
-  selected, club has no books)
+  tab, and empty states for every combination
 - Members page: every member of every club you belong to, grouped by
   club, with a read-only view into each member's personal library
-  (reusing the exact same book-row component as the dashboard)
-- Book CRUD: add a book (title required, everything else — author,
-  ISBN, location — optional), view full details and loan history
+- Full book CRUD: add, edit, delete (owner-only, delete blocked by any
+  loan history or pending request), view full details and loan history
+- **Open Library ISBN lookup**: enter an ISBN (10 or 13 digit, with or
+  without hyphens/spaces) on the Add/Edit Book form, click "Look up",
+  title and author autofill from Open Library's Books API — never
+  overwrites a field the API didn't actually return data for
 - Lending via a request/approval workflow, not instant lending: a
-  borrower requests a book, the owner approves or declines — closer to
-  how borrowing actually works between people. Same pattern for club
-  membership (join requests, founder approves/declines)
-- A unified "Organize" inbox: pending club-join requests (for clubs you
-  founded) and pending loan requests (for books you own) in one place
+  borrower requests a book, the owner approves or declines. Same
+  pattern for club membership (join requests, founder approves/declines)
+- A unified "Organize" inbox: pending club-join requests and pending
+  loan requests in one place
 - Design system (custom typography, flat/no-shadow visual language,
   documented design contract) applied throughout
 
 **Deliberately deferred, documented as concepts, not yet built:**
-- Open Library ISBN lookup for auto-filling book metadata
+- Title search with multiple results to choose from (needs Open
+  Library's Search API, a different endpoint/response shape than the
+  ISBN lookup above — a separate piece of work, not an extension of it)
+- Posts/feed, reviews (star-or-icon rating + free text per book)
 - Reservations ("notify me when this book is returned")
 - Lending to non-registered contacts (neighbours, family)
-- Editing/deleting your own books after adding them
 - A predefined genre field, trust score, book-condition signal,
   AI-assisted reminder emails, a semantic book-recommendation agent
 
@@ -85,18 +87,18 @@ what club/role each one has).
 - `models/` — SQLAlchemy entities only, no business logic
 - `services/` — business logic, no Reflex import, organized by bounded
   context (`auth_service`, `user_service`, `book_service`,
-  `loan_service`, `group_service`, ...)
+  `loan_service`, `group_service`, ...); `services/external/` holds
+  thin API clients (Open Library) with no business logic of their own
 - `state/` — the only layer bridging Reflex UI and services, itself
   split by bounded context (`AuthState`, `GroupState`, `LibraryState`,
   `OrganizeState`)
 - `ui/` — presentation only, imports state, never services or models
-  directly; shared components (e.g. `book_row`) are reused across
-  pages rather than duplicated
+  directly; shared components (`book_row`, `book_form`,
+  `book_action_bar`) are reused across pages rather than duplicated
 
 Layering is a hard constraint, not a convention: services never import
-Reflex, state never touches the ORM directly, and business rules
-(e.g. "a book can't have two active loans", "a group's founder always
-holds the FOUNDER role") live exclusively in the service layer.
+Reflex, state never touches the ORM directly, and business rules live
+exclusively in the service layer.
 
 ## Testing
 

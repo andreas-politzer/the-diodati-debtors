@@ -23,6 +23,14 @@ def add_book() -> rx.Component:
                 color=Color.warning,
             ),
         ),
+        rx.cond(
+            LibraryState.info_message != "",
+            rx.text(
+                LibraryState.info_message,
+                font_family=Font.system,
+                font_size=Type.meta,
+            ),
+        ),
         book_form(submit_label="Add book"),
         rx.link(
             "☞ Back to library", href="/dashboard", margin_top="1rem", display="block"

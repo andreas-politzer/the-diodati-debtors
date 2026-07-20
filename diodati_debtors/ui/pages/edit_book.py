@@ -1,6 +1,6 @@
-"""Edit Book page — edit mode of the shared BookForm, pre-filled from
-LibraryState.detail_book (loaded via the same load_book_detail used by
-the book detail page — same dynamic route segment name, book_id).
+"""Edit Book page — edit mode of the shared BookForm, prefilled via
+LibraryState._populate_form_from_detail (called at the end of
+load_book_detail).
 """
 
 from __future__ import annotations
@@ -27,15 +27,16 @@ def edit_book() -> rx.Component:
             ),
         ),
         rx.cond(
-            LibraryState.detail_book,
-            book_form(
-                book_id=LibraryState.detail_book.id,
-                initial_title=LibraryState.detail_book.title,
-                initial_author=rx.cond(LibraryState.detail_book.author, LibraryState.detail_book.author, ""),
-                initial_isbn=rx.cond(LibraryState.detail_book.isbn, LibraryState.detail_book.isbn, ""),
-                initial_location=rx.cond(LibraryState.detail_book.location, LibraryState.detail_book.location, ""),
-                submit_label="Save changes",
+            LibraryState.info_message != "",
+            rx.text(
+                LibraryState.info_message,
+                font_family=Font.system,
+                font_size=Type.meta,
             ),
+        ),
+        rx.cond(
+            LibraryState.detail_book,
+            book_form(book_id=LibraryState.detail_book.id, submit_label="Save changes"),
         ),
         rx.link(
             "☞ Back to book",

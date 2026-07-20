@@ -80,6 +80,22 @@ class LibraryState(rx.State):
     error_message: str = ""
     info_message: str = ""
     pending_delete_book_id: int = 0  # 0 == nothing pending
+    form_title: str = ""
+    form_author: str = ""
+    form_isbn: str = ""
+    form_location: str = ""
+
+    def set_form_title(self, value: str):
+        self.form_title = value
+
+    def set_form_author(self, value: str):
+        self.form_author = value
+
+    def set_form_isbn(self, value: str):
+        self.form_isbn = value
+
+    def set_form_location(self, value: str):
+        self.form_location = value
 
     def set_tab(self, tab: str):
         self.active_tab = tab
@@ -233,6 +249,48 @@ class LibraryState(rx.State):
                 )
             )
         self.loan_history = history
+        self._populate_form_from_detail()
+
+    def reset_form_fields(self):
+        """Called on entering Add Book fresh — clears any stale values
+        left over from a previous edit session.
+        """
+        self.form_title = ""
+        self.form_author = ""
+        self.form_isbn = ""
+        self.form_location = ""
+
+    def _populate_form_from_detail(self):
+        """Called after load_book_detail() in edit mode, so the
+        controlled inputs show the book's current values.
+        """
+        if self.detail_book is None:
+            return
+        self.form_title = self.detail_book.title
+        self.form_author = self.detail_book.author or ""
+        self.form_isbn = self.detail_book.isbn or ""
+        self.form_location = self.detail_book.location or ""
+
+    def fetch_isbn_metadata(self):
+        """Look up the ISBN currently in form_isbn and prefill
+        title/author on success. Does not touch form_location — the
+        user's own note (e.g. shelf location) isn't something Open
+        Library would know anyway.
+        """
+        self.error_message = ""
+        self.info_message = ""
+        if not self.form_isbn.strip():
+            self.error_message = "Enter an ISBN first."
+            return
+        try:
+            metadata = book_service.lookup_isbn(self.form_isbn)
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
+        self.form_title = metadata.title
+        if metadata.author:
+            self.form_author = metadata.author
+        self.info_message = "Filled in from Open Library — check before saving."
 
     async def request_to_borrow(self, book_id: int):
         self.error_message = ""

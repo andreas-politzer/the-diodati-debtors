@@ -51,7 +51,7 @@ app.add_page(
 app.add_page(
     add_book,
     route="/add-book",
-    on_load=[AuthState.check_auth, LibraryState.load_users],
+    on_load=[AuthState.check_auth, LibraryState.reset_form_fields],
 )
 app.add_page(
     organize,

@@ -120,9 +120,15 @@ def lookup_isbn(isbn: str) -> BookMetadataResult:
     if stripped_isbn is None:
         raise IsbnNotFoundError("No ISBN provided.")
 
-    raw = fetch_book_by_isbn(stripped_isbn)
+    stripped_isbn = blank_to_none(isbn)
+    if stripped_isbn is None:
+        raise IsbnNotFoundError("No ISBN provided.")
+
+    normalized_isbn = stripped_isbn.replace("-", "").replace(" ", "")
+
+    raw = fetch_book_by_isbn(normalized_isbn)
     if raw is None:
-        raise IsbnNotFoundError(f"No Open Library record found for ISBN {stripped_isbn}.")
+        raise IsbnNotFoundError(f"No Open Library record found for ISBN {normalized_isbn}.")
 
     authors = raw.get("authors") or []
     author_names = ", ".join(a.get("name", "") for a in authors if a.get("name"))

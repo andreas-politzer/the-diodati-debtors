@@ -9,17 +9,23 @@ User and Group, so it cascades on delete. Group itself has no cascade
 toward Posts (ownership relation, service-layer decision).
 
 Timestamps: see core/time.py for the project-wide UTC policy.
+
+founder_id + GroupMembership.role: see Domain Model v2 (project vault)
+for the founder invariant — "a group's founder always has a
+GroupMembership with role == FOUNDER" — enforced in group_service, not
+here.
 """
 
 from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.time import utcnow
 from ..db.base import Base
+from .enums import GroupRole
 
 
 class Group(Base):
@@ -28,10 +34,14 @@ class Group(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     # Intentionally not unique — two clubs may share a name.
     name: Mapped[str] = mapped_column(String(150), nullable=False)
+    founder_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False
     )
 
+    founder: Mapped["User"] = relationship(
+        back_populates="founded_groups", foreign_keys=[founder_id]
+    )
     memberships: Mapped[list["GroupMembership"]] = relationship(
         back_populates="group", cascade="all, delete-orphan"
     )
@@ -54,6 +64,16 @@ class GroupMembership(Base):
     group_id: Mapped[int] = mapped_column(
         ForeignKey("groups.id"), nullable=False, index=True
     )
+    role: Mapped[GroupRole] = mapped_column(
+        Enum(
+            GroupRole,
+            native_enum=False,
+            length=20,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        default=GroupRole.MEMBER,
+        nullable=False,
+    )
     joined_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False
     )
@@ -62,4 +82,4 @@ class GroupMembership(Base):
     group: Mapped["Group"] = relationship(back_populates="memberships")
 
     def __repr__(self) -> str:
-        return f"<GroupMembership user_id={self.user_id} group_id={self.group_id}>"
+        return f"<GroupMembership user_id={self.user_id} group_id={self.group_id} role={self.role}>"

@@ -4,6 +4,10 @@ Phase 2 scope: manual fields only (title, author, isbn as plain text).
 Open Library ISBN lookup is deferred — isbn here is just a string field,
 not yet validated or auto-populated.
 
+location (free text, e.g. "Living room, green shelf", "Basement",
+"Box 3") — a practical feature per Domain Model v2, not a technical
+constraint. Optional, no fixed vocabulary.
+
 No cascade toward Loan: deleting a book with historical loan records is
 a domain-policy decision to be reviewed once the full model exists (see
 Struktur.md / Codex review notes), not an automatic DB behaviour.
@@ -32,6 +36,7 @@ class Book(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     author: Mapped[str | None] = mapped_column(String(255), nullable=True)
     isbn: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False
     )

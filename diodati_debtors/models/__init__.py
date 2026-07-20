@@ -4,8 +4,19 @@ registered on Base.metadata before Alembic's autogenerate inspects it.
 
 from .user import User
 from .group import Group, GroupMembership
+from .join_request import JoinRequest
 from .book import Book
 from .loan import Loan
+from .loan_request import LoanRequest
 from .post import Post
 
-__all__ = ["User", "Group", "GroupMembership", "Book", "Loan", "Post"]
+__all__ = [
+    "User",
+    "Group",
+    "GroupMembership",
+    "JoinRequest",
+    "Book",
+    "Loan",
+    "LoanRequest",
+    "Post",
+]

@@ -37,6 +37,9 @@ class User(Base):
     memberships: Mapped[list["GroupMembership"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    founded_groups: Mapped[list["Group"]] = relationship(
+        back_populates="founder", foreign_keys="Group.founder_id"
+    )
     books: Mapped[list["Book"]] = relationship(back_populates="owner")
     loans: Mapped[list["Loan"]] = relationship(back_populates="borrower")
     posts: Mapped[list["Post"]] = relationship(back_populates="author")

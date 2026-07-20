@@ -105,6 +105,18 @@ class DuplicateLoanRequestError(BusinessRuleViolation):
     the same book.
     """
 
+class BookHasLoanHistoryError(BusinessRuleViolation):
+    """Raised when attempting to delete a book that has any loan
+    record (active or historical). Loan has no cascade from Book
+    (immutable history principle) — deleting would orphan those rows.
+    """
+
+
+class BookHasPendingLoanRequestError(BusinessRuleViolation):
+    """Raised when attempting to delete a book that has a pending
+    loan request — the request should be declined/cancelled first.
+    """
+
 
 __all__ = [
     "DiodatiError",
@@ -124,4 +136,6 @@ __all__ = [
     "NotAuthorizedError",
     "CannotRequestOwnBookError",
     "DuplicateLoanRequestError",
+    "BookHasLoanHistoryError",
+    "BookHasPendingLoanRequestError",
 ]

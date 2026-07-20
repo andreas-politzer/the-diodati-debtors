@@ -2,14 +2,13 @@
 Specification.md): plain inputs, dataclass return values, domain
 exceptions, self-contained transactions, no Reflex import.
 
-Open Library ISBN lookup is deferred (Decorative-Assets-Gate /
-"Deferred Until Core Is Green") — isbn here is accepted only as a
+Open Library ISBN lookup is deferred — isbn here is accepted only as a
 plain, optional string, never validated or auto-populated.
 
-Group-scoped listing (list_books_for_group) lives here, not in
-group_service — it's still fundamentally "give me books, filtered",
-the same shape as list_books()/list_books_for_owner(), just with a
-membership join added. Keeps book-listing logic in one place.
+update_book/delete_book are owner-only, checked explicitly here (never
+delegated to a UI-level "trust the button was hidden" assumption).
+delete_book blocks on ANY loan history (not just active loans) — see
+BookHasLoanHistoryError docstring.
 """
 
 from __future__ import annotations
@@ -19,20 +18,25 @@ from dataclasses import asdict, dataclass
 
 from sqlalchemy import select
 
-from ..core.exceptions import InvalidBookDataError, NotFoundError
+from ..core.exceptions import (
+    BookHasLoanHistoryError,
+    BookHasPendingLoanRequestError,
+    InvalidBookDataError,
+    NotAuthorizedError,
+    NotFoundError,
+)
 from ..core.normalize import blank_to_none
 from ..db.session import get_session
 from ..models.book import Book
+from ..models.enums import RequestStatus
 from ..models.group import GroupMembership
+from ..models.loan import Loan
+from ..models.loan_request import LoanRequest
 from ..models.user import User
 
 
 @dataclass(frozen=True)
 class BookResult:
-    """Plain data returned to callers — never a raw ORM instance, per
-    the Service Contract.
-    """
-
     id: int
     owner_id: int
     title: str
@@ -64,12 +68,7 @@ def create_book(
     isbn: str | None = None,
     location: str | None = None,
 ) -> BookResult:
-    """Add a book to an owner's catalogue.
-
-    Raises:
-        NotFoundError: if the owner does not exist.
-        InvalidBookDataError: if title is blank.
-    """
+    """Raises: NotFoundError, InvalidBookDataError."""
     stripped_title = blank_to_none(title)
     if stripped_title is None:
         raise InvalidBookDataError("Book title must not be blank.")
@@ -91,12 +90,87 @@ def create_book(
         return _to_result(book)
 
 
-def get_book(book_id: int) -> BookResult:
-    """Fetch a single book.
+def update_book(
+    book_id: int,
+    owner_id: int,
+    title: str,
+    author: str | None = None,
+    isbn: str | None = None,
+    location: str | None = None,
+) -> BookResult:
+    """Update a book's metadata. Owner-only.
 
     Raises:
         NotFoundError: if the book does not exist.
+        NotAuthorizedError: if owner_id does not own the book.
+        InvalidBookDataError: if title is blank.
     """
+    stripped_title = blank_to_none(title)
+    if stripped_title is None:
+        raise InvalidBookDataError("Book title must not be blank.")
+
+    with get_session() as session:
+        book = session.get(Book, book_id)
+        if book is None:
+            raise NotFoundError(f"Book {book_id} does not exist.")
+        if book.owner_id != owner_id:
+            raise NotAuthorizedError(f"User {owner_id} does not own book {book_id}.")
+
+        book.title = stripped_title
+        book.author = blank_to_none(author)
+        book.isbn = blank_to_none(isbn)
+        book.location = blank_to_none(location)
+        session.flush()
+        return _to_result(book)
+
+
+def delete_book(book_id: int, owner_id: int) -> None:
+    """Delete a book. Owner-only, blocked by any loan history or
+    pending loan request.
+
+    Raises:
+        NotFoundError: if the book does not exist.
+        NotAuthorizedError: if owner_id does not own the book.
+        BookHasLoanHistoryError: if any Loan (active or historical)
+            references this book.
+        BookHasPendingLoanRequestError: if a pending LoanRequest
+            references this book.
+    """
+    with get_session() as session:
+        book = session.get(Book, book_id)
+        if book is None:
+            raise NotFoundError(f"Book {book_id} does not exist.")
+        if book.owner_id != owner_id:
+            raise NotAuthorizedError(f"User {owner_id} does not own book {book_id}.")
+
+        has_loan_history = (
+            session.scalar(select(Loan.id).where(Loan.book_id == book_id).limit(1))
+            is not None
+        )
+        if has_loan_history:
+            raise BookHasLoanHistoryError(
+                f"Book {book_id} has loan history and cannot be deleted."
+            )
+
+        has_pending_request = (
+            session.scalar(
+                select(LoanRequest.id).where(
+                    LoanRequest.book_id == book_id,
+                    LoanRequest.status == RequestStatus.PENDING,
+                ).limit(1)
+            )
+            is not None
+        )
+        if has_pending_request:
+            raise BookHasPendingLoanRequestError(
+                f"Book {book_id} has a pending loan request and cannot be deleted."
+            )
+
+        session.delete(book)
+        session.flush()
+
+
+def get_book(book_id: int) -> BookResult:
     with get_session() as session:
         book = session.get(Book, book_id)
         if book is None:
@@ -105,33 +179,20 @@ def get_book(book_id: int) -> BookResult:
 
 
 def list_books() -> list[BookResult]:
-    """List all books system-wide, ordered by creation time.
-
-    No group/owner filtering — mostly useful for debugging/admin, not
-    a real user-facing view now that group-scoped listing exists.
-    """
     with get_session() as session:
         books = session.scalars(select(Book).order_by(Book.created_at)).all()
         return [_to_result(book) for book in books]
 
 
 def list_books_for_owner(owner_id: int) -> list[BookResult]:
-    """A single user's own catalogue — "My Personal Library"."""
     with get_session() as session:
         books = session.scalars(
-            select(Book)
-            .where(Book.owner_id == owner_id)
-            .order_by(Book.created_at)
+            select(Book).where(Book.owner_id == owner_id).order_by(Book.created_at)
         ).all()
         return [_to_result(book) for book in books]
 
 
 def list_books_for_group(group_id: int) -> list[BookResult]:
-    """Every book owned by any member of the given group —
-    "Common/Club Library". Per Domain Model v2's visibility decision: a
-    book is automatically visible in every group its owner belongs to,
-    no per-club opt-in/opt-out.
-    """
     with get_session() as session:
         books = session.scalars(
             select(Book)
@@ -145,6 +206,8 @@ def list_books_for_group(group_id: int) -> list[BookResult]:
 __all__ = [
     "BookResult",
     "create_book",
+    "update_book",
+    "delete_book",
     "get_book",
     "list_books",
     "list_books_for_owner",

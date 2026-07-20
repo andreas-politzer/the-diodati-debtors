@@ -7,12 +7,20 @@ dt.date.today() or wall-clock time.
 
 from __future__ import annotations
 
+import datetime as dt
+
 import pytest
 
-from diodati_debtors.core.exceptions import InvalidBookDataError, NotFoundError
+from diodati_debtors.core.exceptions import (
+    BookHasLoanHistoryError,
+    BookHasPendingLoanRequestError,
+    InvalidBookDataError,
+    NotAuthorizedError,
+    NotFoundError,
+)
 from diodati_debtors.models.group import Group, GroupMembership
 from diodati_debtors.models.user import User
-from diodati_debtors.services import book_service
+from diodati_debtors.services import book_service, loan_service
 
 
 def _make_user(db, email: str) -> int:
@@ -122,6 +130,77 @@ def test_list_books_for_group_includes_all_members_books(db):
     books = book_service.list_books_for_group(group_id)
 
     assert {b.id for b in books} == {founder_book.id, member_book.id}
+
+
+def test_update_book_succeeds(db):
+    owner_id = _make_user(db, "owner5@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Original Title")
+
+    result = book_service.update_book(
+        book.id, owner_id=owner_id, title="Updated Title", author="New Author"
+    )
+
+    assert result.title == "Updated Title"
+    assert result.author == "New Author"
+
+
+def test_update_book_rejects_non_owner(db):
+    owner_id = _make_user(db, "owner6@example.com")
+    outsider_id = _make_user(db, "outsider6@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Some Book")
+
+    with pytest.raises(NotAuthorizedError):
+        book_service.update_book(book.id, owner_id=outsider_id, title="Hijacked Title")
+
+
+def test_update_book_rejects_blank_title(db):
+    owner_id = _make_user(db, "owner7@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Some Book")
+
+    with pytest.raises(InvalidBookDataError):
+        book_service.update_book(book.id, owner_id=owner_id, title="   ")
+
+
+def test_delete_book_succeeds_when_no_loan_history(db):
+    owner_id = _make_user(db, "owner8@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Disposable Book")
+
+    book_service.delete_book(book.id, owner_id=owner_id)
+
+    with pytest.raises(NotFoundError):
+        book_service.get_book(book.id)
+
+
+def test_delete_book_rejects_non_owner(db):
+    owner_id = _make_user(db, "owner9@example.com")
+    outsider_id = _make_user(db, "outsider9@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Protected Book")
+
+    with pytest.raises(NotAuthorizedError):
+        book_service.delete_book(book.id, owner_id=outsider_id)
+
+
+def test_delete_book_rejects_when_loan_history_exists(db):
+    owner_id = _make_user(db, "owner10@example.com")
+    borrower_id = _make_user(db, "borrower10@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Historic Book")
+    returned = loan_service.create_loan(
+        book_id=book.id, borrower_id=borrower_id, due_date=dt.date.today() + dt.timedelta(days=14)
+    )
+    loan_service.return_loan(returned.id, return_date=dt.date.today() + dt.timedelta(days=19))
+
+    with pytest.raises(BookHasLoanHistoryError):
+        book_service.delete_book(book.id, owner_id=owner_id)
+
+
+def test_delete_book_rejects_when_pending_loan_request_exists(db):
+    owner_id = _make_user(db, "owner11@example.com")
+    requester_id = _make_user(db, "requester11@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Requested Book")
+    loan_service.request_to_borrow(book_id=book.id, requester_id=requester_id)
+
+    with pytest.raises(BookHasPendingLoanRequestError):
+        book_service.delete_book(book.id, owner_id=owner_id)
 
 
 def test_book_service_has_no_reflex_dependency():

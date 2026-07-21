@@ -102,6 +102,7 @@ def dashboard() -> rx.Component:
             spacing="3",
             margin_bottom="1rem",
         ),
+        rx.cond(LibraryState.active_tab == "common", _club_switcher()),
         rx.cond(
             LibraryState.active_tab == "common",
             rx.cond(

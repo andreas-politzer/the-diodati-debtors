@@ -34,7 +34,7 @@ RUN pip install -r requirements.txt --break-system-packages
 
 RUN reflex init
 
-RUN reflex export --frontend-only --no-zip && mv .web/_static/* /srv/ && rm -rf .web
+RUN reflex export --frontend-only --no-zip && mv .web/build/client/* /srv/ && rm -rf .web
 
 STOPSIGNAL SIGKILL
 

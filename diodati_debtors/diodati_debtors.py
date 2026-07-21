@@ -37,6 +37,29 @@ app.add_page(
     landing,
     route="/",
     title="The Diodati Debtors | Community Library for Book Clubs",
+    description=(
+        "A community library application for book clubs. "
+        "Catalogue your books, lend and borrow within your club, "
+        "and keep track of shared libraries."
+    ),
+    meta=[
+        {
+            "property": "og:title",
+            "content": "The Diodati Debtors | Community Library for Book Clubs",
+        },
+        {
+            "property": "og:description",
+            "content": (
+                "A community library application for book clubs. "
+                "Catalogue your books, lend and borrow within your club, "
+                "and keep track of shared libraries."
+            ),
+        },
+        {
+            "property": "og:type",
+            "content": "website",
+        },
+    ],
 )
 app.add_page(style_preview, route="/style-preview")
 app.add_page(login, route="/login", on_load=AuthState.redirect_if_logged_in)

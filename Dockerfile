@@ -40,5 +40,5 @@ STOPSIGNAL SIGKILL
 
 EXPOSE $PORT
 
-CMD [ -d alembic ] && reflex db migrate; \
+CMD alembic upgrade head; \
     caddy start && reflex run --env prod --backend-only --loglevel debug

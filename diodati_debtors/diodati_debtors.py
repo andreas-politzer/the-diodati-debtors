@@ -64,8 +64,21 @@ app.add_page(
 app.add_page(style_preview, route="/style-preview")
 app.add_page(login, route="/login", on_load=AuthState.redirect_if_logged_in)
 app.add_page(register, route="/register", on_load=AuthState.redirect_if_logged_in)
-app.add_page(imprint, route="/imprint")
-app.add_page(privacy, route="/privacy")
+app.add_page(
+    imprint,
+    route="/imprint",
+    title="Imprint | The Diodati Debtors",
+    description="Legal notice and provider information for The Diodati Debtors.",
+)
+
+app.add_page(
+    privacy,
+    route="/privacy",
+    title="Privacy Policy | The Diodati Debtors",
+    description=(
+        "Information about how The Diodati Debtors processes and protects personal data."
+    ),
+)
 app.add_page(
     clubs,
     route="/clubs",

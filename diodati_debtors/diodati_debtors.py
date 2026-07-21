@@ -15,6 +15,8 @@ from .ui.pages.organize import organize
 from .ui.pages.members import members
 from .ui.pages.member_detail import member_detail
 from .ui.pages.edit_book import edit_book
+from .ui.pages.imprint import imprint
+from .ui.pages.privacy import privacy
 from .state.auth_state import AuthState
 from .state.group_state import GroupState
 from .state.library_state import LibraryState
@@ -33,6 +35,8 @@ app.add_page(landing, route="/")
 app.add_page(style_preview, route="/style-preview")
 app.add_page(login, route="/login", on_load=AuthState.redirect_if_logged_in)
 app.add_page(register, route="/register", on_load=AuthState.redirect_if_logged_in)
+app.add_page(imprint, route="/imprint")
+app.add_page(privacy, route="/privacy")
 app.add_page(
     clubs,
     route="/clubs",

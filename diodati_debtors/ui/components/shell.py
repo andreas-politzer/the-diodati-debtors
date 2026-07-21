@@ -13,17 +13,10 @@ from __future__ import annotations
 
 import reflex as rx
 
-from ..tokens import Border, Color, Space
+from ..tokens import Border, Color, Font, Space
 
 
 def shell(*children: rx.Component, max_width: str = "40rem") -> rx.Component:
-    """Wrap page content in the app's consistent outer frame.
-
-    Args:
-        children: page content components.
-        max_width: content column width; pages needing a wider layout
-            (e.g. a book grid) can override this per call.
-    """
     return rx.fragment(
         rx.el.link(rel="preconnect", href="https://fonts.googleapis.com"),
         rx.el.link(
@@ -38,6 +31,28 @@ def shell(*children: rx.Component, max_width: str = "40rem") -> rx.Component:
                 width="100%",
                 margin_x="auto",
                 padding=Space.lg,
+            ),
+            rx.box(
+                rx.hstack(
+                    rx.link(
+                        "Imprint",
+                        href="/imprint",
+                        font_family=Font.system,
+                        font_size="0.7rem",
+                        color=Color.text_soft,
+                    ),
+                    rx.link(
+                        "Privacy",
+                        href="/privacy",
+                        font_family=Font.system,
+                        font_size="0.7rem",
+                        color=Color.text_soft,
+                    ),
+                    spacing="3",
+                    justify="center",
+                ),
+                width="100%",
+                padding_y=Space.md,
             ),
             background_color=Color.background,
             min_height="100vh",

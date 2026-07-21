@@ -27,6 +27,20 @@ def imprint() -> rx.Component:
             "This is a private, non-commercial software project developed as part of a Data Science & AI bootcamp. "
             "It is operated solely for educational and demonstration purposes and is not conducted as a commercial business."
         ),
+        rx.hstack(
+            rx.link(
+                "GitHub",
+                href="https://github.com/andreas-politzer/the-diodati-debtors",
+                is_external=True,
+            ),
+            rx.link(
+                "LinkedIn",
+                href="https://www.linkedin.com/in/andreas-politzer/",
+                is_external=True,
+            ),
+            spacing="3",
+            margin_top="1rem",
+        ),
         rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
         max_width="32rem",
     )

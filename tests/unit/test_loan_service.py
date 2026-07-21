@@ -118,6 +118,40 @@ def test_return_loan_rejects_double_return(db):
     with pytest.raises(LoanAlreadyReturnedError):
         loan_service.return_loan(created.id, return_date=REFERENCE_DATE + dt.timedelta(days=4))
 
+def test_list_loans_for_borrower_returns_active_and_historical(db):
+    owner_id = _make_user(db, "owner_borrower1@example.com")
+    borrower_id = _make_user(db, "borrower_borrower1@example.com")
+    other_borrower_id = _make_user(db, "other_borrower1@example.com")
+    active_book_id = _make_book(db, owner_id, "Currently Borrowed Book")
+    returned_book_id = _make_book(db, owner_id, "Already Returned Book")
+
+    active_loan = loan_service.create_loan(
+        book_id=active_book_id,
+        borrower_id=borrower_id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14),
+        loan_date=REFERENCE_DATE,
+    )
+    returned_loan = loan_service.create_loan(
+        book_id=returned_book_id,
+        borrower_id=borrower_id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14),
+        loan_date=REFERENCE_DATE,
+    )
+    loan_service.return_loan(returned_loan.id, return_date=REFERENCE_DATE + dt.timedelta(days=5))
+    # A loan belonging to someone else must never show up.
+    loan_service.create_loan(
+        book_id=_make_book(db, owner_id, "Someone Else's Loan"),
+        borrower_id=other_borrower_id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14),
+        loan_date=REFERENCE_DATE,
+    )
+
+    results = loan_service.list_loans_for_borrower(borrower_id)
+
+    assert {r.id for r in results} == {active_loan.id, returned_loan.id}
+    assert any(r.is_active for r in results)
+    assert any(not r.is_active for r in results)
+
 
 def test_loan_service_has_no_reflex_dependency():
     """Static source check: the service module must never import

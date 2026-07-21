@@ -70,6 +70,19 @@ class BookDetailView:
     status: str = ""
 
 @dataclass
+class BorrowedLoanView:
+    id: int
+    book_id: int
+    book_title: str
+    owner_name: str
+    loan_date: str
+    due_date: str
+    return_date: str | None = None
+    is_active: bool = False
+    is_overdue: bool = False
+    is_due_soon: bool = False  # due within 3 days, not yet overdue
+
+@dataclass
 class BookSearchResultView:
     work_key: str
     title: str
@@ -99,6 +112,7 @@ class LibraryState(rx.State):
     form_genre: str = ""
     search_query: str = ""
     search_results: list[BookSearchResultView] = []
+    borrowed_loans: list[BorrowedLoanView] = []
 
     def set_form_title(self, value: str):
         self.form_title = value
@@ -117,6 +131,8 @@ class LibraryState(rx.State):
 
     def set_tab(self, tab: str):
         self.active_tab = tab
+        if tab == "borrowed":
+            return LibraryState.load_borrowed_books
         return LibraryState.load_books
 
     async def _build_book_views(self, book_results) -> list[BookView]:
@@ -270,6 +286,60 @@ class LibraryState(rx.State):
             )
         self.loan_history = history
         self._populate_form_from_detail()
+
+    async def load_borrowed_books(self):
+        """Populate 'My Borrowed Books' — active loans (with overdue/
+        due-soon status) and full borrow history, split in the UI by
+        is_active, not by two separate queries.
+        """
+        self.error_message = ""
+        auth_state = await self.get_state(AuthState)
+        if not auth_state.is_logged_in:
+            self.borrowed_loans = []
+            return
+
+        try:
+            loans = loan_service.list_loans_for_borrower(
+                int(auth_state.current_user_id)
+            )
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
+
+        today = dt.date.today()
+        views: list[BorrowedLoanView] = []
+        for loan in loans:
+            try:
+                book = book_service.get_book(loan.book_id)
+                owner = user_service.get_user(book.owner_id)
+                book_title = book.title
+                owner_name = owner.display_name
+            except DiodatiError:
+                book_title = f"Book {loan.book_id}"
+                owner_name = "Unknown"
+
+            is_overdue = loan.is_active and loan.due_date < today
+            is_due_soon = (
+                loan.is_active
+                and not is_overdue
+                and (loan.due_date - today).days <= 3
+            )
+
+            views.append(
+                BorrowedLoanView(
+                    id=loan.id,
+                    book_id=loan.book_id,
+                    book_title=book_title,
+                    owner_name=owner_name,
+                    loan_date=loan.loan_date.isoformat(),
+                    due_date=loan.due_date.isoformat(),
+                    return_date=loan.return_date.isoformat() if loan.return_date else None,
+                    is_active=loan.is_active,
+                    is_overdue=is_overdue,
+                    is_due_soon=is_due_soon,
+                )
+            )
+        self.borrowed_loans = views
 
     def reset_form_fields(self):
         """Called on entering Add Book fresh — clears any stale values
@@ -480,4 +550,4 @@ class LibraryState(rx.State):
         return rx.redirect("/dashboard")
 
 
-__all__ = ["LibraryState", "BookView", "LoanHistoryEntry", "BookDetailView"]
+__all__ = ["LibraryState", "BookView", "LoanHistoryEntry", "BookDetailView", "BorrowedLoanView"]

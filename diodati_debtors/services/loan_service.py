@@ -406,6 +406,20 @@ def list_pending_loan_requests_for_owner(owner_id: int) -> list[LoanRequestResul
             .order_by(LoanRequest.requested_at)
         ).all()
         return [_to_request_result(r) for r in requests]
+    
+def list_loans_for_borrower(borrower_id: int) -> list[LoanResult]:
+    """All loans (active and historical) where this user is the
+    borrower — feeds "My Borrowed Books" (Currently Borrowed / Borrow
+    History as two sections over the same data, split by is_active in
+    state/UI, not by two separate queries).
+    """
+    with get_session() as session:
+        loans = session.scalars(
+            select(Loan)
+            .where(Loan.borrower_id == borrower_id)
+            .order_by(Loan.loan_date.desc())
+        ).all()
+        return [_to_result(loan) for loan in loans]
 
 
 __all__ = [
@@ -422,4 +436,5 @@ __all__ = [
     "approve_loan_request",
     "decline_loan_request",
     "list_pending_loan_requests_for_owner",
+    "list_loans_for_borrower"
 ]

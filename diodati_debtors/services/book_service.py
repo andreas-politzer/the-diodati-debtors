@@ -33,6 +33,7 @@ from ..core.normalize import blank_to_none
 from ..db.session import get_session
 from ..models.book import Book
 from ..models.enums import RequestStatus
+from ..models.enums import BookGenre
 from ..models.group import GroupMembership
 from ..models.loan import Loan
 from ..models.loan_request import LoanRequest
@@ -81,6 +82,7 @@ class BookResult:
     author: str | None
     isbn: str | None
     location: str | None
+    genre: str | None
     created_at: dt.datetime
 
     def to_dict(self) -> dict:
@@ -95,6 +97,7 @@ def _to_result(book: Book) -> BookResult:
         author=book.author,
         isbn=book.isbn,
         location=book.location,
+        genre=book.genre.value if book.genre else None,
         created_at=book.created_at,
     )
 
@@ -105,6 +108,7 @@ def create_book(
     author: str | None = None,
     isbn: str | None = None,
     location: str | None = None,
+    genre: str | None = None,
 ) -> BookResult:
     """Raises: NotFoundError, InvalidBookDataError."""
     stripped_title = blank_to_none(title)
@@ -122,6 +126,7 @@ def create_book(
             author=blank_to_none(author),
             isbn=blank_to_none(isbn),
             location=blank_to_none(location),
+            genre=BookGenre(genre) if genre else None,
         )
         session.add(book)
         session.flush()
@@ -212,6 +217,7 @@ def update_book(
     author: str | None = None,
     isbn: str | None = None,
     location: str | None = None,
+    genre: str | None = None,
 ) -> BookResult:
     """Update a book's metadata. Owner-only.
 
@@ -235,6 +241,7 @@ def update_book(
         book.author = blank_to_none(author)
         book.isbn = blank_to_none(isbn)
         book.location = blank_to_none(location)
+        book.genre = BookGenre(genre) if genre else None
         session.flush()
         return _to_result(book)
 

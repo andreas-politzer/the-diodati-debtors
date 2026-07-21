@@ -24,6 +24,37 @@ class GroupRole(str, enum.Enum):
     ADMIN = "admin"
     MEMBER = "member"
 
+class BookGenre(str, enum.Enum):
+    """Predefined genre vocabulary — a flat, pragmatic browsing list,
+    not an academic taxonomy (deliberately mixes genre and literary
+    form, per the "goal is browsing, not classification" principle).
+    Single genre per book in V1 — a future many-to-many extension
+    remains possible without redesigning this.
+    """
+
+    FANTASY = "fantasy"
+    SCIENCE_FICTION = "science_fiction"
+    HORROR = "horror"
+    MYSTERY = "mystery"
+    THRILLER = "thriller"
+    HISTORICAL_FICTION = "historical_fiction"
+    LITERARY_FICTION = "literary_fiction"
+    ROMANCE = "romance"
+    ADVENTURE = "adventure"
+    DYSTOPIA_UTOPIA = "dystopia_utopia"
+    BIOGRAPHY = "biography"
+    HISTORY = "history"
+    SCIENCE = "science"
+    PHILOSOPHY = "philosophy"
+    NONFICTION = "nonfiction"
+    POETRY = "poetry"
+    DRAMA = "drama"
+    ESSAY = "essay"
+    YOUNG_ADULT = "young_adult"
+    CHILDRENS = "childrens"
+    FAIRY_TALE = "fairy_tale"
+    SATIRE = "satire"
+
 
 class RequestStatus(str, enum.Enum):
     """Shared status vocabulary for JoinRequest and LoanRequest. Not a
@@ -47,4 +78,4 @@ class RequestStatus(str, enum.Enum):
     EXPIRED = "expired"
 
 
-__all__ = ["GroupRole", "RequestStatus"]
+__all__ = ["GroupRole", "RequestStatus", "BookGenre"]

@@ -307,6 +307,43 @@ def test_search_books_handles_missing_optional_fields_gracefully(monkeypatch):
     assert results[0].cover_id is None
     assert results[0].isbn is None
 
+def test_create_book_with_genre(db):
+    owner_id = _make_user(db, "owner_genre1@example.com")
+
+    result = book_service.create_book(
+        owner_id=owner_id, title="Frankenstein", genre="horror"
+    )
+
+    assert result.genre == "horror"
+
+
+def test_create_book_without_genre_defaults_to_none(db):
+    owner_id = _make_user(db, "owner_genre2@example.com")
+
+    result = book_service.create_book(owner_id=owner_id, title="Some Book")
+
+    assert result.genre is None
+
+
+def test_update_book_can_set_genre(db):
+    owner_id = _make_user(db, "owner_genre3@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Dracula")
+
+    result = book_service.update_book(
+        book.id, owner_id=owner_id, title="Dracula", genre="horror"
+    )
+
+    assert result.genre == "horror"
+
+
+def test_create_book_rejects_invalid_genre(db):
+    owner_id = _make_user(db, "owner_genre4@example.com")
+
+    with pytest.raises(ValueError):
+        book_service.create_book(
+            owner_id=owner_id, title="Bad Genre Book", genre="not-a-real-genre"
+        )
+
 
 def test_book_service_has_no_reflex_dependency():
     """Static source check, per the Architecture Contract."""

@@ -1,16 +1,20 @@
 """Book entity.
 
 Phase 2 scope: manual fields only (title, author, isbn as plain text).
-Open Library ISBN lookup is deferred — isbn here is just a string field,
-not yet validated or auto-populated.
+Open Library ISBN lookup exists now (book_service.lookup_isbn) —
+isbn/title/author here remain plain fields, populated either manually
+or via the lookup, no separate representation.
 
-location (free text, e.g. "Living room, green shelf", "Basement",
-"Box 3") — a practical feature per Domain Model v2, not a technical
-constraint. Optional, no fixed vocabulary.
+location (free text) — a practical feature, not a technical constraint.
 
-No cascade toward Loan: deleting a book with historical loan records is
-a domain-policy decision to be reviewed once the full model exists (see
-Struktur.md / Codex review notes), not an automatic DB behaviour.
+genre (optional, single value from BookGenre) — a flat, pragmatic
+browsing vocabulary, not academic taxonomy. Deliberately single-value
+in V1; see Domain Model v2 for the reasoning and the future migration
+path to many-to-many, if ever needed.
+
+No cascade toward Loan: deleting a book with historical loan records
+is blocked at the service layer (book_service.delete_book), not by a
+database cascade.
 
 Timestamps: see core/time.py for the project-wide UTC policy.
 """
@@ -19,11 +23,12 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.time import utcnow
 from ..db.base import Base
+from .enums import BookGenre
 
 
 class Book(Base):
@@ -37,6 +42,15 @@ class Book(Base):
     author: Mapped[str | None] = mapped_column(String(255), nullable=True)
     isbn: Mapped[str | None] = mapped_column(String(20), nullable=True)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    genre: Mapped[BookGenre | None] = mapped_column(
+        Enum(
+            BookGenre,
+            native_enum=False,
+            length=30,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=True,
+    )
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False
     )

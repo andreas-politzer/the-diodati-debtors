@@ -1,7 +1,7 @@
 # Official Reflex single-container deployment pattern, for platforms
 # like Railway/Render/Heroku: Caddy reverse-proxies backend routes,
 # serves the static frontend directly, TLS handled by the platform.
-FROM python:3.11.3-slim-bookworm
+FROM python:3.11-slim-bookworm
 
 ARG PORT=8080
 ARG API_URL

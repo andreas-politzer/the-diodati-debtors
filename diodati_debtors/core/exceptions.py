@@ -131,6 +131,15 @@ class InvalidSearchQueryError(BusinessRuleViolation):
     normal, displayable outcome, not a business-rule violation.
     """
 
+class InvalidPostDataError(BusinessRuleViolation):
+    """Raised when post/comment content is blank."""
+
+
+class NotAuthorizedToPostError(BusinessRuleViolation):
+    """Raised when a user attempts to post somewhere they can't see —
+    a club feed they're not a member of, or a book they can't view.
+    """
+
 
 __all__ = [
     "DiodatiError",
@@ -154,4 +163,6 @@ __all__ = [
     "BookHasPendingLoanRequestError",
     "IsbnNotFoundError",
     "InvalidSearchQueryError",
+    "InvalidPostDataError",
+    "NotAuthorizedToPostError",
 ]

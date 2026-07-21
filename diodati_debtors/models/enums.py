@@ -77,5 +77,15 @@ class RequestStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     EXPIRED = "expired"
 
+class PostType(str, enum.Enum):
+    """Purely presentational — icon/color/filter in the UI, never
+    changes a Post's lifecycle or database structure. The raven motif
+    (messenger/bearer of news) is reserved for ANNOUNCEMENT.
+    """
 
-__all__ = ["GroupRole", "RequestStatus", "BookGenre"]
+    GENERAL = "general"
+    QUESTION = "question"
+    ANNOUNCEMENT = "announcement"
+
+
+__all__ = ["GroupRole", "RequestStatus", "BookGenre", "PostType"]

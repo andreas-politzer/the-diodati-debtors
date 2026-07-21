@@ -39,6 +39,7 @@ class BookView:
     author: str | None = None
     isbn: str | None = None
     location: str | None = None
+    genre: str | None = None
     owner_name: str = ""
     is_on_loan: bool = False
     status: str = ""
@@ -64,6 +65,7 @@ class BookDetailView:
     author: str | None = None
     isbn: str | None = None
     location: str | None = None
+    genre: str | None = None
     owner_name: str = ""
     status: str = ""
 
@@ -94,6 +96,7 @@ class LibraryState(rx.State):
     form_author: str = ""
     form_isbn: str = ""
     form_location: str = ""
+    form_genre: str = ""
     search_query: str = ""
     search_results: list[BookSearchResultView] = []
 
@@ -108,6 +111,9 @@ class LibraryState(rx.State):
 
     def set_form_location(self, value: str):
         self.form_location = value
+
+    def set_form_genre(self, value: str):
+        self.form_genre = value
 
     def set_tab(self, tab: str):
         self.active_tab = tab
@@ -146,6 +152,7 @@ class LibraryState(rx.State):
                     owner_name=owner_names_by_id.get(book.owner_id, f"User {book.owner_id}"),
                     title=book.title,
                     author=book.author,
+                    genre=book.genre,
                     isbn=book.isbn,
                     location=book.location,
                     is_on_loan=active_loan is not None,
@@ -240,6 +247,7 @@ class LibraryState(rx.State):
             author=book.author,
             isbn=book.isbn,
             location=book.location,
+            genre=book.genre,
             owner_name=owner.display_name,
             status="on loan" if active_loan else "available",
         )
@@ -282,6 +290,7 @@ class LibraryState(rx.State):
         self.form_author = self.detail_book.author or ""
         self.form_isbn = self.detail_book.isbn or ""
         self.form_location = self.detail_book.location or ""
+        self.form_genre = self.detail_book.genre or ""
 
     def fetch_isbn_metadata(self):
         """Look up the ISBN currently in form_isbn and prefill
@@ -416,6 +425,11 @@ class LibraryState(rx.State):
                     author=form_data.get("author", ""),
                     isbn=form_data.get("isbn", ""),
                     location=form_data.get("location", ""),
+                    genre=(
+                        None
+                        if form_data.get("genre", "") in ("", "-")
+                        else form_data.get("genre")
+                    ),
                 )
                 self.info_message = "Book updated."
             else:
@@ -425,6 +439,11 @@ class LibraryState(rx.State):
                     author=form_data.get("author", ""),
                     isbn=form_data.get("isbn", ""),
                     location=form_data.get("location", ""),
+                    genre=(
+                        None
+                        if form_data.get("genre", "") in ("", "-")
+                        else form_data.get("genre")
+                    ),
                 )
                 self.info_message = "Book added."
         except DiodatiError as e:

@@ -11,9 +11,10 @@ import reflex as rx
 
 from .button import primary_button
 from ...state.library_state import LibraryState
+from ...models.enums import BookGenre
 
 
-def book_form(book_id=0, submit_label: str = "Save") -> rx.Component:
+def book_form(book_id="", submit_label: str = "Save") -> rx.Component:
     return rx.form(
         rx.vstack(
             rx.input(name="book_id", value=book_id, type="hidden"),
@@ -47,6 +48,13 @@ def book_form(book_id=0, submit_label: str = "Save") -> rx.Component:
                 name="location",
                 value=LibraryState.form_location,
                 on_change=LibraryState.set_form_location,
+            ),
+            rx.select(
+                ["—"] + [g.value for g in BookGenre],
+                placeholder="Genre (optional)",
+                name="genre",
+                value=LibraryState.form_genre,
+                on_change=LibraryState.set_form_genre,
             ),
             primary_button(submit_label, type="submit"),
             spacing="3",

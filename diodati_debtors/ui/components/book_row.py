@@ -19,6 +19,7 @@ def book_row(book: BookView) -> rx.Component:
         page_title(book.title),
         rx.cond(book.author, body_text(book.author)),
         rx.cond(book.location, meta_text(f"Location: {book.location}")),
+        rx.cond(book.genre, meta_text(f"Genre: {book.genre}")),
         rx.cond(~book.is_own_book, meta_text(f"Owned by {book.owner_name}")),
         rx.text(
             book.status,

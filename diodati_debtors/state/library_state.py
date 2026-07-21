@@ -427,7 +427,7 @@ class LibraryState(rx.State):
                     location=form_data.get("location", ""),
                     genre=(
                         None
-                        if form_data.get("genre", "") in ("", "-")
+                        if form_data.get("genre", "") in ("", "—")
                         else form_data.get("genre")
                     ),
                 )
@@ -441,7 +441,7 @@ class LibraryState(rx.State):
                     location=form_data.get("location", ""),
                     genre=(
                         None
-                        if form_data.get("genre", "") in ("", "-")
+                        if form_data.get("genre", "") in ("", "—")
                         else form_data.get("genre")
                     ),
                 )

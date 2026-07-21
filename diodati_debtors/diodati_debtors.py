@@ -33,7 +33,11 @@ app = rx.App(
     style=global_style(),
     stylesheets=stylesheets(),
 )
-app.add_page(landing, route="/")
+app.add_page(
+    landing,
+    route="/",
+    title="The Diodati Debtors | Community Library for Book Clubs",
+)
 app.add_page(style_preview, route="/style-preview")
 app.add_page(login, route="/login", on_load=AuthState.redirect_if_logged_in)
 app.add_page(register, route="/register", on_load=AuthState.redirect_if_logged_in)

@@ -23,6 +23,7 @@ from diodati_debtors.models.user import User
 from diodati_debtors.services import book_service, loan_service
 from diodati_debtors.core.exceptions import IsbnNotFoundError
 from diodati_debtors.core.exceptions import InvalidSearchQueryError
+from diodati_debtors.core.exceptions import SummaryGenerationError
 
 
 def _make_user(db, email: str) -> int:
@@ -343,6 +344,70 @@ def test_create_book_rejects_invalid_genre(db):
         book_service.create_book(
             owner_id=owner_id, title="Bad Genre Book", genre="not-a-real-genre"
         )
+
+def test_set_summary_succeeds_for_owner(db):
+    owner_id = _make_user(db, "owner_summary1@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Frankenstein")
+
+    result = book_service.set_summary(book.id, owner_id=owner_id, summary="A scientist creates life.")
+
+    assert result.summary == "A scientist creates life."
+    assert result.summary_source == "owner"
+
+
+def test_set_summary_rejects_non_owner(db):
+    owner_id = _make_user(db, "owner_summary2@example.com")
+    outsider_id = _make_user(db, "outsider_summary1@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Dracula")
+
+    with pytest.raises(NotAuthorizedError):
+        book_service.set_summary(book.id, owner_id=outsider_id, summary="Nope")
+
+
+def test_fetch_summary_from_open_library_succeeds(db, monkeypatch):
+    owner_id = _make_user(db, "owner_summary3@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="The Monk", isbn="9780140437723")
+
+    monkeypatch.setattr(
+        book_service, "fetch_book_by_isbn", lambda isbn: {"description": "A gothic classic."}
+    )
+
+    result = book_service.fetch_summary_from_open_library(book.id, owner_id=owner_id)
+
+    assert result.summary == "A gothic classic."
+    assert result.summary_source == "open_library"
+
+
+def test_fetch_summary_from_open_library_raises_when_no_isbn(db):
+    owner_id = _make_user(db, "owner_summary4@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="No ISBN Book")
+
+    with pytest.raises(InvalidBookDataError):
+        book_service.fetch_summary_from_open_library(book.id, owner_id=owner_id)
+
+
+def test_fetch_summary_from_open_library_raises_when_no_description(db, monkeypatch):
+    owner_id = _make_user(db, "owner_summary5@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Vathek", isbn="9780199537391")
+
+    monkeypatch.setattr(book_service, "fetch_book_by_isbn", lambda isbn: {"title": "Vathek"})
+
+    with pytest.raises(SummaryGenerationError):
+        book_service.fetch_summary_from_open_library(book.id, owner_id=owner_id)
+
+
+def test_generate_summary_with_ai_succeeds(db, monkeypatch):
+    owner_id = _make_user(db, "owner_summary6@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Melmoth the Wanderer")
+
+    monkeypatch.setattr(
+        book_service, "generate_text", lambda prompt: "A man makes a dark bargain."
+    )
+
+    result = book_service.generate_summary_with_ai(book.id, owner_id=owner_id)
+
+    assert result.summary == "A man makes a dark bargain."
+    assert result.summary_source == "ai_generated"
 
 
 def test_book_service_has_no_reflex_dependency():

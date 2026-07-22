@@ -23,12 +23,12 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String
+from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.time import utcnow
 from ..db.base import Base
-from .enums import BookGenre
+from .enums import BookGenre, SummarySource
 
 
 class Book(Base):
@@ -42,6 +42,16 @@ class Book(Base):
     author: Mapped[str | None] = mapped_column(String(255), nullable=True)
     isbn: Mapped[str | None] = mapped_column(String(20), nullable=True)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_source: Mapped["SummarySource | None"] = mapped_column(
+        Enum(
+            SummarySource,
+            native_enum=False,
+            length=20,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=True,
+    )
     genre: Mapped[BookGenre | None] = mapped_column(
         Enum(
             BookGenre,

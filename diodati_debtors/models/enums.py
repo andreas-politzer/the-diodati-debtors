@@ -87,5 +87,15 @@ class PostType(str, enum.Enum):
     QUESTION = "question"
     ANNOUNCEMENT = "announcement"
 
+class SummarySource(str, enum.Enum):
+    """Where a book's summary came from — shown transparently in the
+    UI, not hidden. The owner can always overwrite any source with
+    their own text.
+    """
 
-__all__ = ["GroupRole", "RequestStatus", "BookGenre", "PostType"]
+    OWNER = "owner"
+    OPEN_LIBRARY = "open_library"
+    AI_GENERATED = "ai_generated"
+
+
+__all__ = ["GroupRole", "RequestStatus", "BookGenre", "PostType", "SummarySource"]

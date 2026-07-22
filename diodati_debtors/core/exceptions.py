@@ -149,6 +149,13 @@ class NotEligibleToReviewError(BusinessRuleViolation):
     book attempts to review it.
     """
 
+class SummaryGenerationError(BusinessRuleViolation):
+    """Raised when no summary could be produced — no description
+    available from Open Library, or the AI generation failed/was
+    blocked. Network/API failures propagate as their own natural
+    exception (requests.RequestException), not wrapped here.
+    """
+
 
 __all__ = [
     "DiodatiError",
@@ -176,4 +183,5 @@ __all__ = [
     "NotAuthorizedToPostError",
     "InvalidReviewDataError",
     "NotEligibleToReviewError",
+    "SummaryGenerationError",
 ]

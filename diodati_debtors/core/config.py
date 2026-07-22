@@ -50,7 +50,11 @@ class Settings:
     open_library_base_url: str = os.environ.get(
         "OPEN_LIBRARY_BASE_URL", "https://openlibrary.org"
     )
-    anthropic_api_key: str = os.environ.get("ANTHROPIC_API_KEY", "")
+    gemini_api_key: str = os.environ.get("GEMINI_API_KEY", "")
+    gemini_model: str = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+    gemini_base_url: str = os.environ.get(
+        "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
+    )
 
     @property
     def sqlalchemy_database_uri(self) -> str:

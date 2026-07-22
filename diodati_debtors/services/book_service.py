@@ -38,6 +38,9 @@ from ..models.group import GroupMembership
 from ..models.loan import Loan
 from ..models.loan_request import LoanRequest
 from ..models.user import User
+from ..core.exceptions import SummaryGenerationError
+from ..models.enums import SummarySource
+from .external.gemini_client import generate_text
 
 @dataclass(frozen=True)
 class BookMetadataResult:
@@ -84,6 +87,8 @@ class BookResult:
     location: str | None
     genre: str | None
     created_at: dt.datetime
+    summary: str | None
+    summary_source: str | None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -99,6 +104,8 @@ def _to_result(book: Book) -> BookResult:
         location=book.location,
         genre=book.genre.value if book.genre else None,
         created_at=book.created_at,
+        summary=book.summary,
+        summary_source=book.summary_source.value if book.summary_source else None,
     )
 
 
@@ -244,6 +251,115 @@ def update_book(
         book.genre = BookGenre(genre) if genre else None
         session.flush()
         return _to_result(book)
+    
+def set_summary(book_id: int, owner_id: int, summary: str) -> BookResult:
+    """Manually set a book's summary. Owner-only.
+
+    Raises:
+        NotFoundError: if the book does not exist.
+        NotAuthorizedError: if owner_id does not own the book.
+        InvalidBookDataError: if summary is blank.
+    """
+    stripped = blank_to_none(summary)
+    if stripped is None:
+        raise InvalidBookDataError("Summary must not be blank.")
+
+    with get_session() as session:
+        book = session.get(Book, book_id)
+        if book is None:
+            raise NotFoundError(f"Book {book_id} does not exist.")
+        if book.owner_id != owner_id:
+            raise NotAuthorizedError(f"User {owner_id} does not own book {book_id}.")
+
+        book.summary = stripped
+        book.summary_source = SummarySource.OWNER
+        session.flush()
+        return _to_result(book)
+
+
+def fetch_summary_from_open_library(book_id: int, owner_id: int) -> BookResult:
+    """Best-effort: Open Library's description field is not reliably
+    present (a known upstream limitation — see project vault). Owner-
+    only.
+
+    Raises:
+        NotFoundError: if the book does not exist.
+        NotAuthorizedError: if owner_id does not own the book.
+        InvalidBookDataError: if the book has no ISBN set.
+        SummaryGenerationError: if Open Library has no description for
+            this ISBN.
+    """
+    with get_session() as session:
+        book = session.get(Book, book_id)
+        if book is None:
+            raise NotFoundError(f"Book {book_id} does not exist.")
+        if book.owner_id != owner_id:
+            raise NotAuthorizedError(f"User {owner_id} does not own book {book_id}.")
+        if not book.isbn:
+            raise InvalidBookDataError("This book has no ISBN set.")
+
+        raw = fetch_book_by_isbn(book.isbn)
+        description = None
+        if raw:
+            desc_field = raw.get("description")
+            if isinstance(desc_field, dict):
+                description = desc_field.get("value")
+            elif isinstance(desc_field, str):
+                description = desc_field
+            if description is None:
+                excerpts = raw.get("excerpts") or []
+                if excerpts:
+                    description = excerpts[0].get("text")
+
+        stripped = blank_to_none(description)
+        if stripped is None:
+            raise SummaryGenerationError(
+                "Open Library has no description available for this ISBN."
+            )
+
+        book.summary = stripped
+        book.summary_source = SummarySource.OPEN_LIBRARY
+        session.flush()
+        return _to_result(book)
+
+
+def generate_summary_with_ai(book_id: int, owner_id: int) -> BookResult:
+    """Generate a spoiler-free summary via Gemini. Owner-only.
+
+    Raises:
+        NotFoundError: if the book does not exist.
+        NotAuthorizedError: if owner_id does not own the book.
+        SummaryGenerationError: if Gemini returns no usable text.
+
+    Network/API failures propagate as requests.RequestException, not
+    translated into a domain exception here.
+    """
+    with get_session() as session:
+        book = session.get(Book, book_id)
+        if book is None:
+            raise NotFoundError(f"Book {book_id} does not exist.")
+        if book.owner_id != owner_id:
+            raise NotAuthorizedError(f"User {owner_id} does not own book {book_id}.")
+
+        author_part = f" by {book.author}" if book.author else ""
+        prompt = (
+            f"Write a short, spoiler-free summary (2-3 sentences) of the "
+            f"book \"{book.title}\"{author_part}. Do not reveal plot twists "
+            f"or the ending."
+        )
+        try:
+            generated = generate_text(prompt)
+        except ValueError as e:
+            raise SummaryGenerationError(str(e)) from e
+
+        stripped = blank_to_none(generated)
+        if stripped is None:
+            raise SummaryGenerationError("AI generation returned no usable text.")
+
+        book.summary = stripped
+        book.summary_source = SummarySource.AI_GENERATED
+        session.flush()
+        return _to_result(book)
 
 
 def delete_book(book_id: int, owner_id: int) -> None:
@@ -338,5 +454,7 @@ __all__ = [
     "lookup_isbn",
     "BookSearchResult",
     "search_books",
-
+    "set_summary",
+    "fetch_summary_from_open_library",
+    "generate_summary_with_ai",
 ]

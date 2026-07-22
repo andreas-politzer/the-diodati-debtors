@@ -18,6 +18,7 @@ from .ui.pages.edit_book import edit_book
 from .ui.pages.imprint import imprint
 from .ui.pages.privacy import privacy
 from .ui.pages.club_feed import club_feed
+from .ui.pages.global_board import global_board
 from .state.post_state import PostState
 from .state.auth_state import AuthState
 from .state.group_state import GroupState
@@ -88,6 +89,11 @@ app.add_page(
     dashboard,
     route="/dashboard",
     on_load=[AuthState.check_auth, GroupState.load_my_groups, LibraryState.load_all],
+)
+app.add_page(
+    global_board,
+    route="/board",
+    on_load=[AuthState.check_auth, PostState.load_board],
 )
 app.add_page(
     book_detail,

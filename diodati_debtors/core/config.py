@@ -51,7 +51,7 @@ class Settings:
         "OPEN_LIBRARY_BASE_URL", "https://openlibrary.org"
     )
     gemini_api_key: str = os.environ.get("GEMINI_API_KEY", "")
-    gemini_model: str = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+    gemini_model: str = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
     gemini_base_url: str = os.environ.get(
         "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
     )

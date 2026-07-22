@@ -11,6 +11,7 @@ from ..components.button import primary_button
 from ..components.card import card
 from ..components.label import body_text, meta_text, page_title
 from ..components.shell import divider, shell
+from ..components.community_guidelines import community_guidelines
 from ..tokens import Color, Font, Type
 from ...state.post_state import CommentView, PostState, PostView
 
@@ -64,6 +65,7 @@ def global_board() -> rx.Component:
                 color=Color.warning,
             ),
         ),
+        community_guidelines(),
         rx.form(
             rx.vstack(
                 rx.text_area(placeholder="Ask the whole community...", name="content", rows="3"),

@@ -140,6 +140,15 @@ class NotAuthorizedToPostError(BusinessRuleViolation):
     a club feed they're not a member of, or a book they can't view.
     """
 
+class InvalidReviewDataError(BusinessRuleViolation):
+    """Raised when review content is blank or rating is out of range."""
+
+
+class NotEligibleToReviewError(BusinessRuleViolation):
+    """Raised when a user who neither owns nor has ever borrowed a
+    book attempts to review it.
+    """
+
 
 __all__ = [
     "DiodatiError",
@@ -165,4 +174,6 @@ __all__ = [
     "InvalidSearchQueryError",
     "InvalidPostDataError",
     "NotAuthorizedToPostError",
+    "InvalidReviewDataError",
+    "NotEligibleToReviewError",
 ]

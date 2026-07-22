@@ -152,6 +152,26 @@ def test_list_loans_for_borrower_returns_active_and_historical(db):
     assert any(r.is_active for r in results)
     assert any(not r.is_active for r in results)
 
+def test_list_loans_for_owner_returns_only_that_owners_books_loans(db):
+    owner_id = _make_user(db, "owner_lent1@example.com")
+    other_owner_id = _make_user(db, "owner_lent2@example.com")
+    borrower_id = _make_user(db, "borrower_lent1@example.com")
+    my_book_id = _make_book(db, owner_id, "My Book")
+    other_book_id = _make_book(db, other_owner_id, "Other Owner's Book")
+
+    my_loan = loan_service.create_loan(
+        book_id=my_book_id, borrower_id=borrower_id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14), loan_date=REFERENCE_DATE,
+    )
+    loan_service.create_loan(
+        book_id=other_book_id, borrower_id=borrower_id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14), loan_date=REFERENCE_DATE,
+    )
+
+    results = loan_service.list_loans_for_owner(owner_id)
+
+    assert [r.id for r in results] == [my_loan.id]
+
 
 def test_loan_service_has_no_reflex_dependency():
     """Static source check: the service module must never import

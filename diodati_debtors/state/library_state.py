@@ -87,6 +87,19 @@ class BorrowedLoanView:
     is_due_soon: bool = False  # due within 3 days, not yet overdue
 
 @dataclass
+class LentOutLoanView:
+    id: int
+    book_id: int
+    book_title: str
+    borrower_name: str
+    loan_date: str
+    due_date: str
+    return_date: str | None = None
+    is_active: bool = False
+    is_overdue: bool = False
+    is_due_soon: bool = False
+
+@dataclass
 class BookSearchResultView:
     work_key: str
     title: str
@@ -119,6 +132,7 @@ class LibraryState(rx.State):
     search_query: str = ""
     search_results: list[BookSearchResultView] = []
     borrowed_loans: list[BorrowedLoanView] = []
+    lent_out_loans: list[LentOutLoanView] = []
 
     def set_form_title(self, value: str):
         self.form_title = value
@@ -148,6 +162,8 @@ class LibraryState(rx.State):
         self.active_tab = tab
         if tab == "borrowed":
             return LibraryState.load_borrowed_books
+        if tab == "lent_out":
+            return LibraryState.load_lent_out_books
         return LibraryState.load_books
 
     async def _build_book_views(self, book_results) -> list[BookView]:
@@ -423,6 +439,49 @@ class LibraryState(rx.State):
                 )
             )
         self.borrowed_loans = views
+
+    async def load_lent_out_books(self):
+        self.error_message = ""
+        auth_state = await self.get_state(AuthState)
+        if not auth_state.is_logged_in:
+            self.lent_out_loans = []
+            return
+        try:
+            loans = loan_service.list_loans_for_owner(int(auth_state.current_user_id))
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
+
+        today = dt.date.today()
+        views: list[LentOutLoanView] = []
+        for loan in loans:
+            try:
+                book = book_service.get_book(loan.book_id)
+                borrower = user_service.get_user(loan.borrower_id)
+                book_title = book.title
+                borrower_name = borrower.display_name
+            except DiodatiError:
+                book_title = f"Book {loan.book_id}"
+                borrower_name = "Unknown"
+
+            is_overdue = loan.is_active and loan.due_date < today
+            is_due_soon = loan.is_active and not is_overdue and (loan.due_date - today).days <= 3
+
+            views.append(
+                LentOutLoanView(
+                    id=loan.id,
+                    book_id=loan.book_id,
+                    book_title=book_title,
+                    borrower_name=borrower_name,
+                    loan_date=loan.loan_date.isoformat(),
+                    due_date=loan.due_date.isoformat(),
+                    return_date=loan.return_date.isoformat() if loan.return_date else None,
+                    is_active=loan.is_active,
+                    is_overdue=is_overdue,
+                    is_due_soon=is_due_soon,
+                )
+            )
+        self.lent_out_loans = views
 
     def reset_form_fields(self):
         """Called on entering Add Book fresh — clears any stale values

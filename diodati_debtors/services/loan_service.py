@@ -420,6 +420,19 @@ def list_loans_for_borrower(borrower_id: int) -> list[LoanResult]:
             .order_by(Loan.loan_date.desc())
         ).all()
         return [_to_result(loan) for loan in loans]
+    
+def list_loans_for_owner(owner_id: int) -> list[LoanResult]:
+    """All loans (active and historical) across every book this user
+    owns — feeds "My Lent-Out Books", the mirror of My Borrowed Books.
+    """
+    with get_session() as session:
+        loans = session.scalars(
+            select(Loan)
+            .join(Book, Book.id == Loan.book_id)
+            .where(Book.owner_id == owner_id)
+            .order_by(Loan.loan_date.desc())
+        ).all()
+        return [_to_result(loan) for loan in loans]
 
 
 __all__ = [
@@ -436,5 +449,6 @@ __all__ = [
     "approve_loan_request",
     "decline_loan_request",
     "list_pending_loan_requests_for_owner",
-    "list_loans_for_borrower"
+    "list_loans_for_borrower",
+    "list_loans_for_owner"
 ]

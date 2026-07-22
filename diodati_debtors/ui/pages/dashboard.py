@@ -18,7 +18,7 @@ from ..components.shell import divider, shell
 from ..tokens import Border, Color, Font, Radius, Space, Type
 from ...state.auth_state import AuthState
 from ...state.group_state import GroupState
-from ...state.library_state import BorrowedLoanView, LibraryState
+from ...state.library_state import BorrowedLoanView, LentOutLoanView, LibraryState
 
 
 def _tab_button(label: str, tab_key: str) -> rx.Component:
@@ -67,6 +67,20 @@ def _loan_row(loan: BorrowedLoanView) -> rx.Component:
     return card(
         page_title(loan.book_title),
         meta_text(f"Owned by {loan.owner_name}"),
+        meta_text(f"Loaned {loan.loan_date}, due {loan.due_date}"),
+        rx.cond(
+            loan.is_overdue,
+            rx.text("☠ Overdue", font_weight="700"),
+            rx.cond(loan.is_due_soon, rx.text("⏳ Due soon"), rx.fragment()),
+        ),
+        rx.cond(loan.is_active == False, meta_text(f"Returned {loan.return_date}")),
+        margin_bottom="1rem",
+    )
+
+def _lent_out_row(loan: LentOutLoanView) -> rx.Component:
+    return card(
+        page_title(loan.book_title),
+        meta_text(f"Lent to {loan.borrower_name}"),
         meta_text(f"Loaned {loan.loan_date}, due {loan.due_date}"),
         rx.cond(
             loan.is_overdue,
@@ -126,63 +140,66 @@ def dashboard() -> rx.Component:
             _tab_button("Personal Library", "personal"),
             _tab_button("Common Club Library", "common"),
             _tab_button("My Borrowed Books", "borrowed"),
+            _tab_button("My Lent-Out Books", "lent_out"),
             spacing="3",
             margin_bottom="1rem",
         ),
-        rx.cond(LibraryState.active_tab == "common", _club_switcher()),
-        divider(),
         rx.cond(
-            LibraryState.active_tab == "borrowed",
-            rx.fragment(
-                page_title("Currently Borrowed"),
-                rx.cond(
-                    LibraryState.borrowed_loans.length() > 0,
-                    rx.foreach(
-                        LibraryState.borrowed_loans,
-                        lambda loan: rx.cond(
-                            loan.is_active, _loan_row(loan), rx.fragment()
-                        ),
-                    ),
-                    body_text("You haven't borrowed any books right now."),
-                ),
-                divider(),
-                page_title("Borrow History"),
-                rx.foreach(
-                    LibraryState.borrowed_loans,
-                    lambda loan: rx.cond(
-                        loan.is_active == False, _loan_row(loan), rx.fragment()
-                    ),
-                ),
+            LibraryState.active_tab == "lent_out",
+            rx.cond(
+                LibraryState.lent_out_loans.length() > 0,
+                rx.foreach(LibraryState.lent_out_loans, _lent_out_row),
+                body_text("You haven't lent out any books."),
             ),
             rx.cond(
-                (LibraryState.active_tab == "common")
-                & (GroupState.current_group_id == ""),
-                rx.cond(
-                    GroupState.has_groups,
-                    rx.fragment(
-                        body_text("You haven't selected a club yet."),
-                        meta_text("Choose one from the dropdown above."),
-                    ),
-                    rx.fragment(
-                        body_text("You're not a member of any club yet."),
-                        rx.link(
-                            "☞ Browse or found a club",
-                            href="/clubs",
-                            margin_top="0.5rem",
-                            display="block",
+                LibraryState.active_tab == "borrowed",
+                rx.fragment(
+                    page_title("Currently Borrowed"),
+                    rx.cond(
+                        LibraryState.borrowed_loans.length() > 0,
+                        rx.foreach(
+                            LibraryState.borrowed_loans,
+                            lambda loan: rx.cond(loan.is_active, _loan_row(loan), rx.fragment()),
                         ),
+                        body_text("You haven't borrowed any books right now."),
+                    ),
+                    divider(),
+                    page_title("Borrow History"),
+                    rx.foreach(
+                        LibraryState.borrowed_loans,
+                        lambda loan: rx.cond(loan.is_active == False, _loan_row(loan), rx.fragment()),
                     ),
                 ),
                 rx.cond(
-                    LibraryState.books.length() > 0,
-                    rx.foreach(LibraryState.books, book_row),
+                    (LibraryState.active_tab == "common")
+                    & (GroupState.current_group_id == ""),
                     rx.cond(
-                        LibraryState.active_tab == "common",
-                        body_text("This club doesn't have any books yet."),
+                        GroupState.has_groups,
                         rx.fragment(
-                            body_text("You don't have any books in your library yet."),
-                            body_text(
-                                'Click "Add a book" and start building your personal library.'
+                            body_text("You haven't selected a club yet."),
+                            meta_text("Choose one from the dropdown above."),
+                        ),
+                        rx.fragment(
+                            body_text("You're not a member of any club yet."),
+                            rx.link(
+                                "☞ Browse or found a club",
+                                href="/clubs",
+                                margin_top="0.5rem",
+                                display="block",
+                            ),
+                        ),
+                    ),
+                    rx.cond(
+                        LibraryState.books.length() > 0,
+                        rx.foreach(LibraryState.books, book_row),
+                        rx.cond(
+                            LibraryState.active_tab == "common",
+                            body_text("This club doesn't have any books yet."),
+                            rx.fragment(
+                                body_text("You don't have any books in your library yet."),
+                                body_text(
+                                    'Click "Add a book" and start building your personal library.'
+                                ),
                             ),
                         ),
                     ),

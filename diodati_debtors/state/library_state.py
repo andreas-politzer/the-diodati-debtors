@@ -109,11 +109,13 @@ class LibraryState(rx.State):
     error_message: str = ""
     info_message: str = ""
     pending_delete_book_id: int = 0  # 0 == nothing pending
+    pending_clear_summary: bool = False
     form_title: str = ""
     form_author: str = ""
     form_isbn: str = ""
     form_location: str = ""
     form_genre: str = ""
+    form_summary: str = ""
     search_query: str = ""
     search_results: list[BookSearchResultView] = []
     borrowed_loans: list[BorrowedLoanView] = []
@@ -132,6 +134,15 @@ class LibraryState(rx.State):
 
     def set_form_genre(self, value: str):
         self.form_genre = value
+    
+    def set_form_summary(self, value: str):
+        self.form_summary = value
+
+    def confirm_clear_summary(self):
+        self.pending_clear_summary = True
+
+    def cancel_clear_summary(self):
+        self.pending_clear_summary = False
 
     def set_tab(self, tab: str):
         self.active_tab = tab
@@ -344,6 +355,21 @@ class LibraryState(rx.State):
             self.info_message = "Summary generated."
             await self.load_book_detail()
 
+    async def clear_summary(self):
+        self.error_message = ""
+        self.info_message = ""
+        auth_state = await self.get_state(AuthState)
+        try:
+            book_service.clear_summary(
+                int(self.book_id), owner_id=int(auth_state.current_user_id)
+            )
+        except DiodatiError as e:
+            self.error_message = str(e)
+        else:
+            self.info_message = "Summary cleared."
+            self.pending_clear_summary = False
+            await self.load_book_detail()
+
     async def load_borrowed_books(self):
         """Populate 'My Borrowed Books' — active loans (with overdue/
         due-soon status) and full borrow history, split in the UI by
@@ -408,9 +434,6 @@ class LibraryState(rx.State):
         self.form_location = ""
 
     def _populate_form_from_detail(self):
-        """Called after load_book_detail() in edit mode, so the
-        controlled inputs show the book's current values.
-        """
         if self.detail_book is None:
             return
         self.form_title = self.detail_book.title
@@ -418,6 +441,15 @@ class LibraryState(rx.State):
         self.form_isbn = self.detail_book.isbn or ""
         self.form_location = self.detail_book.location or ""
         self.form_genre = self.detail_book.genre or ""
+        # Only prefill with the owner's own prior text — never
+        # silently offer AI/Open-Library text for "Save my own
+        # summary", which would relabel it as owner-authored on
+        # submit without the user realizing.
+        self.form_summary = (
+            self.detail_book.summary
+            if self.detail_book.summary_source == "owner"
+            else ""
+        )
 
     def fetch_isbn_metadata(self):
         """Look up the ISBN currently in form_isbn and prefill

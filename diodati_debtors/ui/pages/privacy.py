@@ -64,6 +64,13 @@ def privacy() -> rx.Component:
             "included in these requests. Requests to Open Library are "
             "subject to Open Library's own privacy practices."
         ),
+        body_text(
+            "When you use the AI-generated summary feature, the book's "
+            "title and author are sent to Google's Gemini API to "
+            "generate a short synopsis. No account or personal data is "
+            "sent as part of these requests. This feature is optional "
+            "and only triggered when a book's owner explicitly requests it."
+        ),
         divider(),
         page_title("Cookies"),
         body_text(

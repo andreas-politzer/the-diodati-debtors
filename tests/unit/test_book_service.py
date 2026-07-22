@@ -409,6 +409,25 @@ def test_generate_summary_with_ai_succeeds(db, monkeypatch):
     assert result.summary == "A man makes a dark bargain."
     assert result.summary_source == "ai_generated"
 
+def test_clear_summary_succeeds_for_owner(db):
+    owner_id = _make_user(db, "owner_summary7@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Carmilla")
+    book_service.set_summary(book.id, owner_id=owner_id, summary="A vampire tale.")
+
+    result = book_service.clear_summary(book.id, owner_id=owner_id)
+
+    assert result.summary is None
+    assert result.summary_source is None
+
+
+def test_clear_summary_rejects_non_owner(db):
+    owner_id = _make_user(db, "owner_summary8@example.com")
+    outsider_id = _make_user(db, "outsider_summary2@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Zastrozzi")
+
+    with pytest.raises(NotAuthorizedError):
+        book_service.clear_summary(book.id, owner_id=outsider_id)
+
 
 def test_book_service_has_no_reflex_dependency():
     """Static source check, per the Architecture Contract."""

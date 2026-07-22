@@ -360,6 +360,25 @@ def generate_summary_with_ai(book_id: int, owner_id: int) -> BookResult:
         book.summary_source = SummarySource.AI_GENERATED
         session.flush()
         return _to_result(book)
+    
+def clear_summary(book_id: int, owner_id: int) -> BookResult:
+    """Remove a book's summary entirely. Owner-only.
+
+    Raises:
+        NotFoundError: if the book does not exist.
+        NotAuthorizedError: if owner_id does not own the book.
+    """
+    with get_session() as session:
+        book = session.get(Book, book_id)
+        if book is None:
+            raise NotFoundError(f"Book {book_id} does not exist.")
+        if book.owner_id != owner_id:
+            raise NotAuthorizedError(f"User {owner_id} does not own book {book_id}.")
+
+        book.summary = None
+        book.summary_source = None
+        session.flush()
+        return _to_result(book)
 
 
 def delete_book(book_id: int, owner_id: int) -> None:
@@ -457,4 +476,5 @@ __all__ = [
     "set_summary",
     "fetch_summary_from_open_library",
     "generate_summary_with_ai",
+    "clear_summary",
 ]

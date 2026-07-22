@@ -9,6 +9,7 @@ from __future__ import annotations
 import reflex as rx
 
 from ..components.button import primary_button
+from ..components.button import warning_button
 from ..components.label import body_text, meta_text, page_title
 from ..components.shell import divider, shell
 from ..tokens import Color, Font, Type
@@ -52,6 +53,8 @@ def synopsis() -> rx.Component:
                                 rx.text_area(
                                     placeholder="Write your own summary...",
                                     name="summary",
+                                    value=LibraryState.form_summary,
+                                    on_change=LibraryState.set_form_summary,
                                     rows="6",
                                 ),
                                 primary_button("Save my own summary", type="submit"),
@@ -69,6 +72,24 @@ def synopsis() -> rx.Component:
                                 "Generate with AI",
                                 on_click=LibraryState.generate_summary_ai,
                                 type="button",
+                            ),
+                            rx.cond(
+                                LibraryState.pending_clear_summary,
+                                rx.hstack(
+                                    meta_text("Really clear the summary?"),
+                                    warning_button(
+                                        "Yes, clear it", on_click=LibraryState.clear_summary
+                                    ),
+                                    primary_button(
+                                        "Cancel", on_click=LibraryState.cancel_clear_summary
+                                    ),
+                                    spacing="2",
+                                ),
+                                primary_button(
+                                    "Clear summary",
+                                    on_click=LibraryState.confirm_clear_summary,
+                                    type="button",
+                                ),
                             ),
                             spacing="3",
                             margin_top="1rem",

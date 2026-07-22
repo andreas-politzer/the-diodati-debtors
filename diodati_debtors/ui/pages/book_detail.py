@@ -57,6 +57,11 @@ def book_detail() -> rx.Component:
                     href=f"/book/{LibraryState.detail_book.id}/reviews",
                     display="block",
                 ),
+                rx.link(
+                    "☞ Synopsis",
+                    href=f"/book/{LibraryState.detail_book.id}/synopsis",
+                    display="block",
+                ),
                 rx.cond(
                     LibraryState.detail_book.isbn,
                     meta_text(f"ISBN: {LibraryState.detail_book.isbn}"),

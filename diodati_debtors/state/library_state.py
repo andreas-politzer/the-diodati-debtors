@@ -68,6 +68,10 @@ class BookDetailView:
     genre: str | None = None
     owner_name: str = ""
     status: str = ""
+    owner_id: int = 0
+    is_own_book: bool = False
+    summary: str | None = None
+    summary_source: str | None = None
 
 @dataclass
 class BorrowedLoanView:
@@ -248,6 +252,11 @@ class LibraryState(rx.State):
             self.error_message = "Invalid book id."
             return
 
+        auth_state = await self.get_state(AuthState)
+        current_user_id = (
+            int(auth_state.current_user_id) if auth_state.is_logged_in else None
+        )
+
         try:
             book = book_service.get_book(bid)
             owner = user_service.get_user(book.owner_id)
@@ -266,6 +275,10 @@ class LibraryState(rx.State):
             genre=book.genre,
             owner_name=owner.display_name,
             status="on loan" if active_loan else "available",
+            owner_id=book.owner_id,
+            is_own_book=(book.owner_id == current_user_id),
+            summary=book.summary,
+            summary_source=book.summary_source,
         )
 
         history: list[LoanHistoryEntry] = []
@@ -286,6 +299,50 @@ class LibraryState(rx.State):
             )
         self.loan_history = history
         self._populate_form_from_detail()
+
+    async def submit_summary_manual(self, form_data: dict):
+        self.error_message = ""
+        self.info_message = ""
+        auth_state = await self.get_state(AuthState)
+        try:
+            book_service.set_summary(
+                int(self.book_id),
+                owner_id=int(auth_state.current_user_id),
+                summary=form_data.get("summary", ""),
+            )
+        except DiodatiError as e:
+            self.error_message = str(e)
+        else:
+            self.info_message = "Summary saved."
+            await self.load_book_detail()
+
+    async def fetch_summary_open_library(self):
+        self.error_message = ""
+        self.info_message = ""
+        auth_state = await self.get_state(AuthState)
+        try:
+            book_service.fetch_summary_from_open_library(
+                int(self.book_id), owner_id=int(auth_state.current_user_id)
+            )
+        except DiodatiError as e:
+            self.error_message = str(e)
+        else:
+            self.info_message = "Summary fetched from Open Library."
+            await self.load_book_detail()
+
+    async def generate_summary_ai(self):
+        self.error_message = ""
+        self.info_message = ""
+        auth_state = await self.get_state(AuthState)
+        try:
+            book_service.generate_summary_with_ai(
+                int(self.book_id), owner_id=int(auth_state.current_user_id)
+            )
+        except DiodatiError as e:
+            self.error_message = str(e)
+        else:
+            self.info_message = "Summary generated."
+            await self.load_book_detail()
 
     async def load_borrowed_books(self):
         """Populate 'My Borrowed Books' — active loans (with overdue/

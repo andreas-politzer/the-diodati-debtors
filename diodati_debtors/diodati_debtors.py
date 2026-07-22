@@ -20,6 +20,7 @@ from .ui.pages.privacy import privacy
 from .ui.pages.club_feed import club_feed
 from .ui.pages.global_board import global_board
 from .ui.pages.reviews import reviews
+from .ui.pages.synopsis import synopsis
 from .state.review_state import ReviewState
 from .state.post_state import PostState
 from .state.auth_state import AuthState
@@ -136,4 +137,9 @@ app.add_page(
     reviews,
     route="/book/[book_id]/reviews",
     on_load=[AuthState.check_auth, ReviewState.load_reviews],
+)
+app.add_page(
+    synopsis,
+    route="/book/[book_id]/synopsis",
+    on_load=[AuthState.check_auth, LibraryState.load_book_detail],
 )

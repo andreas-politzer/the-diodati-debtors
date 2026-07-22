@@ -19,6 +19,8 @@ from .ui.pages.imprint import imprint
 from .ui.pages.privacy import privacy
 from .ui.pages.club_feed import club_feed
 from .ui.pages.global_board import global_board
+from .ui.pages.reviews import reviews
+from .state.review_state import ReviewState
 from .state.post_state import PostState
 from .state.auth_state import AuthState
 from .state.group_state import GroupState
@@ -129,4 +131,9 @@ app.add_page(
     club_feed,
     route="/club-feed",
     on_load=[AuthState.check_auth, PostState.load_club_feed],
+)
+app.add_page(
+    reviews,
+    route="/book/[book_id]/reviews",
+    on_load=[AuthState.check_auth, ReviewState.load_reviews],
 )

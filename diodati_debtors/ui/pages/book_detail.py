@@ -52,6 +52,11 @@ def book_detail() -> rx.Component:
                 ),
                 meta_text(f"Owned by {LibraryState.detail_book.owner_name}"),
                 meta_text(LibraryState.detail_book.status),
+                rx.link(
+                    "☞ Reviews",
+                    href=f"/book/{LibraryState.detail_book.id}/reviews",
+                    display="block",
+                ),
                 rx.cond(
                     LibraryState.detail_book.isbn,
                     meta_text(f"ISBN: {LibraryState.detail_book.isbn}"),

@@ -21,6 +21,7 @@ from .ui.pages.club_feed import club_feed
 from .ui.pages.global_board import global_board
 from .ui.pages.reviews import reviews
 from .ui.pages.synopsis import synopsis
+from .ui.pages.book_discussion import book_discussion
 from .state.review_state import ReviewState
 from .state.post_state import PostState
 from .state.auth_state import AuthState
@@ -142,4 +143,9 @@ app.add_page(
     synopsis,
     route="/book/[book_id]/synopsis",
     on_load=[AuthState.check_auth, LibraryState.load_book_detail],
+)
+app.add_page(
+    book_discussion,
+    route="/book/[book_id]/discussion",
+    on_load=[AuthState.check_auth, PostState.load_book_discussion],
 )

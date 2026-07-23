@@ -62,6 +62,19 @@ def book_detail() -> rx.Component:
                     href=f"/book/{LibraryState.detail_book.id}/synopsis",
                     display="block",
                 ),
+                rx.link(
+                    "☞ Discussion",
+                    href=f"/book/{LibraryState.detail_book.id}/discussion",
+                    display="block",
+                ),
+                rx.cond(
+                    LibraryState.detail_book.is_own_book,
+                    rx.link(
+                        "☞ Edit",
+                        href=f"/book/{LibraryState.detail_book.id}/edit",
+                        display="block",
+                    ),
+                ),
                 rx.cond(
                     LibraryState.detail_book.isbn,
                     meta_text(f"ISBN: {LibraryState.detail_book.isbn}"),

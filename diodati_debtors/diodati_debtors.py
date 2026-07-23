@@ -22,6 +22,7 @@ from .ui.pages.global_board import global_board
 from .ui.pages.reviews import reviews
 from .ui.pages.synopsis import synopsis
 from .ui.pages.book_discussion import book_discussion
+from .ui.pages.communication import communication
 from .state.review_state import ReviewState
 from .state.post_state import PostState
 from .state.auth_state import AuthState
@@ -149,3 +150,7 @@ app.add_page(
     route="/book/[book_id]/discussion",
     on_load=[AuthState.check_auth, PostState.load_book_discussion],
 )
+app.add_page(
+    communication, 
+    route="/communication", 
+    on_load=AuthState.check_auth)

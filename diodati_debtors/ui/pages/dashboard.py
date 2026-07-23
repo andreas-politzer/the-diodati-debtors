@@ -114,8 +114,7 @@ def dashboard() -> rx.Component:
         rx.link("☞ Clubs", href="/clubs", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Members", href="/members", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Organize", href="/organize", margin_bottom="0.5rem", display="block"),
-        rx.link("☞ Club Feed", href="/club-feed", margin_bottom="0.5rem", display="block"),
-        rx.link("☞ Global Board", href="/board", margin_bottom="0.5rem", display="block"),
+        rx.link("☞ Communication", href="/communication", margin_bottom="0.5rem", display="block"),
         rx.link(
             "☞ Log out",
             href="/",
@@ -144,7 +143,7 @@ def dashboard() -> rx.Component:
             spacing="3",
             margin_bottom="1rem",
         ),
-        rx.cond(LibraryState.active_tab == "common", _club_switcher()),
+        
         rx.cond(
             LibraryState.active_tab == "lent_out",
             rx.cond(

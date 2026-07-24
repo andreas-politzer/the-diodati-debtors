@@ -37,26 +37,9 @@ from ..models.enums import RequestStatus
 from ..models.loan import Loan
 from ..models.loan_request import LoanRequest
 from ..models.user import User
+from ..models.enums import ConditionRating
 
 DEFAULT_LOAN_PERIOD_DAYS = 14
-
-
-@dataclass(frozen=True)
-class LoanResult:
-    id: int
-    book_id: int
-    borrower_id: int
-    loan_date: dt.date
-    due_date: dt.date
-    return_date: dt.date | None
-
-    @property
-    def is_active(self) -> bool:
-        return self.return_date is None
-
-    def to_dict(self) -> dict:
-        return asdict(self)
-
 
 @dataclass(frozen=True)
 class LoanRequestResult:
@@ -71,6 +54,22 @@ class LoanRequestResult:
     def to_dict(self) -> dict:
         return asdict(self)
 
+@dataclass(frozen=True)
+class LoanResult:
+    id: int
+    book_id: int
+    borrower_id: int
+    loan_date: dt.date
+    due_date: dt.date
+    return_date: dt.date | None
+    condition_rating: str | None
+
+    @property
+    def is_active(self) -> bool:
+        return self.return_date is None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 def _to_result(loan: Loan) -> LoanResult:
     return LoanResult(
@@ -80,6 +79,7 @@ def _to_result(loan: Loan) -> LoanResult:
         loan_date=loan.loan_date,
         due_date=loan.due_date,
         return_date=loan.return_date,
+        condition_rating=loan.condition_rating.value if loan.condition_rating else None,
     )
 
 
@@ -149,13 +149,24 @@ def create_loan(
         return _to_result(loan)
 
 
-def return_loan(loan_id: int, return_date: dt.date | None = None) -> LoanResult:
-    """Mark a loan as returned.
+def return_loan(
+    loan_id: int,
+    return_date: dt.date | None = None,
+    condition_rating: str | None = None,
+) -> LoanResult:
+    """Mark a loan as returned. condition_rating is optional — the
+    owner may skip it entirely to keep the workflow lightweight (see
+    Trust Signals Domain Design, project vault).
 
     Raises:
         NotFoundError: if the loan does not exist.
         LoanAlreadyReturnedError: if already returned.
         InvalidLoanDatesError: if return_date < loan_date.
+
+    ConditionRating(condition_rating) raises a plain ValueError for
+    invalid strings — intentional, same trust-boundary reasoning as
+    BookGenre in book_service: the only current source is our own
+    controlled UI dropdown.
     """
     resolved_return_date = return_date or today()
 
@@ -175,6 +186,8 @@ def return_loan(loan_id: int, return_date: dt.date | None = None) -> LoanResult:
             )
 
         loan.return_date = resolved_return_date
+        if condition_rating:
+            loan.condition_rating = ConditionRating(condition_rating)
         session.flush()
         return _to_result(loan)
 

@@ -18,10 +18,12 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import Date, ForeignKey
+from sqlalchemy import DateTime, Enum, ForeignKey, Date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db.base import Base
+
+from .enums import ConditionRating
 
 
 class Loan(Base):
@@ -37,6 +39,15 @@ class Loan(Base):
     loan_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     due_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     return_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    condition_rating: Mapped["ConditionRating | None"] = mapped_column(
+        Enum(
+            ConditionRating,
+            native_enum=False,
+            length=25,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=True,
+    )
 
     book: Mapped["Book"] = relationship(back_populates="loans")
     borrower: Mapped["User"] = relationship(back_populates="loans")
@@ -51,3 +62,4 @@ class Loan(Base):
 
     def __repr__(self) -> str:
         return f"<Loan id={self.id} book_id={self.book_id} active={self.is_active}>"
+    

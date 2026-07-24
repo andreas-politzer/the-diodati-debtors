@@ -102,5 +102,17 @@ class SummarySource(str, enum.Enum):
     OPEN_LIBRARY = "open_library"
     AI_GENERATED = "ai_generated"
 
+class ConditionRating(str, enum.Enum):
+    """Optional condition assessment an owner may give when marking a
+    loan as returned. Stored as a fact only — the conversion into
+    Book Care points/categories lives entirely in the service layer
+    (see Trust Signals Domain Design, project vault), never here.
+    """
 
-__all__ = ["GroupRole", "RequestStatus", "BookGenre", "PostType", "SummarySource"]
+    BETTER_THAN_BEFORE = "better_than_before"
+    SAME_CONDITION = "same_condition"
+    SLIGHTLY_WORSE = "slightly_worse"
+    SIGNIFICANTLY_WORSE = "significantly_worse"
+
+
+__all__ = ["GroupRole", "RequestStatus", "BookGenre", "PostType", "SummarySource", "ConditionRating"]

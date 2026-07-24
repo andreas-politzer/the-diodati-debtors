@@ -23,6 +23,7 @@ from .ui.pages.reviews import reviews
 from .ui.pages.synopsis import synopsis
 from .ui.pages.book_discussion import book_discussion
 from .ui.pages.communication import communication
+from .ui.pages.lent_out_books import lent_out_books
 from .state.review_state import ReviewState
 from .state.post_state import PostState
 from .state.auth_state import AuthState
@@ -153,4 +154,10 @@ app.add_page(
 app.add_page(
     communication, 
     route="/communication", 
-    on_load=AuthState.check_auth)
+    on_load=AuthState.check_auth
+)
+app.add_page(
+    lent_out_books,
+    route="/lent-out-history",
+    on_load=[AuthState.check_auth, LibraryState.load_lent_out_history],
+)

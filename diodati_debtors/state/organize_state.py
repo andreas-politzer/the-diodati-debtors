@@ -15,7 +15,7 @@ from dataclasses import dataclass
 import reflex as rx
 
 from ..core.exceptions import DiodatiError
-from ..services import book_service, group_service, loan_service, user_service
+from ..services import book_service, group_service, loan_service, trust_service, user_service
 from .auth_state import AuthState
 
 
@@ -33,6 +33,8 @@ class LoanRequestView:
     requester_name: str
     book_title: str
     requested_at: str
+    reliability: str = ""
+    book_care: str = ""
 
 
 class OrganizeState(rx.State):
@@ -83,12 +85,15 @@ class OrganizeState(rx.State):
             except DiodatiError:
                 requester_name = f"User {r.requester_id}"
                 book_title = f"Book {r.book_id}"
+            signals = trust_service.get_trust_signals(r.requester_id)
             loan_views.append(
                 LoanRequestView(
                     id=r.id,
                     requester_name=requester_name,
                     book_title=book_title,
                     requested_at=r.requested_at.isoformat(),
+                    reliability=signals.reliability,
+                    book_care=signals.book_care,
                 )
             )
         self.loan_requests = loan_views

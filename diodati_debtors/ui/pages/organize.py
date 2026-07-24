@@ -42,12 +42,19 @@ def _join_request_card(request: JoinRequestView) -> rx.Component:
 
 
 def _loan_request_card(request: LoanRequestView) -> rx.Component:
-    return _request_card(
-        title_text=f"{request.requester_name} wants to borrow",
-        subtitle=request.book_title,
-        requested_at=request.requested_at,
-        on_approve=lambda: OrganizeState.approve_loan(request.id),
-        on_decline=lambda: OrganizeState.decline_loan(request.id),
+    return card(
+        body_text(f"{request.requester_name} wants to borrow"),
+        meta_text(request.book_title),
+        meta_text(f"Requested {request.requested_at}"),
+        meta_text(f"Reliability: {request.reliability}"),
+        meta_text(f"Book Care: {request.book_care}"),
+        rx.hstack(
+            primary_button("Approve", on_click=lambda: OrganizeState.approve_loan(request.id)),
+            warning_button("Decline", on_click=lambda: OrganizeState.decline_loan(request.id)),
+            spacing="3",
+            margin_top="0.5rem",
+        ),
+        margin_bottom="1rem",
     )
 
 

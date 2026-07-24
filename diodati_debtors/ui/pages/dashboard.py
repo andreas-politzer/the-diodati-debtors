@@ -1,10 +1,9 @@
 """Dashboard page — "What can I access right now?"
 
-Three tabs over one page: Personal Library, Common Club Library, My
-Borrowed Books — all book/loan lists live here, per Andy's preference
-to avoid scattering related lists across separate pages. Each tab's
-data source changes; the underlying card/list presentation stays
-consistent.
+Two tabs: Personal Library, Common Club Library, plus My Borrowed
+Books as a third. My Lent-Out Books moved to its own page (too
+prominent as a fourth tab, per Andy's feedback) — same pattern as
+Reviews/Synopsis/Discussion, linked from the nav instead.
 """
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ from ..components.shell import divider, shell
 from ..tokens import Border, Color, Font, Radius, Space, Type
 from ...state.auth_state import AuthState
 from ...state.group_state import GroupState
-from ...state.library_state import BorrowedLoanView, LentOutLoanView, LibraryState
+from ...state.library_state import BorrowedLoanView, LibraryState
 
 
 def _tab_button(label: str, tab_key: str) -> rx.Component:
@@ -74,10 +73,11 @@ def _loan_row(loan: BorrowedLoanView) -> rx.Component:
             rx.cond(loan.is_due_soon, rx.text("⏳ Due soon"), rx.fragment()),
         ),
         rx.cond(loan.is_active == False, meta_text(f"Returned {loan.return_date}")),
+        rx.link("☞ View details", href=f"/book/{loan.book_id}", margin_top="0.5rem", display="block"),
         margin_bottom="1rem",
     )
 
-def _lent_out_row(loan: LentOutLoanView) -> rx.Component:
+def _lent_out_row(loan) -> rx.Component:
     return card(
         page_title(loan.book_title),
         meta_text(f"Lent to {loan.borrower_name}"),
@@ -87,7 +87,7 @@ def _lent_out_row(loan: LentOutLoanView) -> rx.Component:
             rx.text("☠ Overdue", font_weight="700"),
             rx.cond(loan.is_due_soon, rx.text("⏳ Due soon"), rx.fragment()),
         ),
-        rx.cond(loan.is_active == False, meta_text(f"Returned {loan.return_date}")),
+        rx.link("☞ View details", href=f"/book/{loan.book_id}", margin_top="0.5rem", display="block"),
         margin_bottom="1rem",
     )
 
@@ -143,13 +143,25 @@ def dashboard() -> rx.Component:
             spacing="3",
             margin_bottom="1rem",
         ),
-        
+        rx.cond(LibraryState.active_tab == "common", _club_switcher()),
+        divider(),
         rx.cond(
             LibraryState.active_tab == "lent_out",
-            rx.cond(
-                LibraryState.lent_out_loans.length() > 0,
-                rx.foreach(LibraryState.lent_out_loans, _lent_out_row),
-                body_text("You haven't lent out any books."),
+            rx.fragment(
+                rx.cond(
+                    LibraryState.lent_out_loans.length() > 0,
+                    rx.foreach(
+                        LibraryState.lent_out_loans,
+                        lambda loan: rx.cond(loan.is_active, _lent_out_row(loan), rx.fragment()),
+                    ),
+                    body_text("You haven't lent out any books right now."),
+                ),
+                rx.link(
+                    "☞ My Lent-Out History",
+                    href="/lent-out-history",
+                    margin_top="1rem",
+                    display="block",
+                ),
             ),
             rx.cond(
                 LibraryState.active_tab == "borrowed",

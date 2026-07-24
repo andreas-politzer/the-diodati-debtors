@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 import reflex as rx
 
 from ..core.exceptions import DiodatiError
-from ..services import book_service, loan_service, user_service
+from ..services import book_service, loan_service, trust_service, user_service
 from .auth_state import AuthState
 from .group_state import GroupState
 
@@ -100,6 +100,21 @@ class LentOutLoanView:
     is_due_soon: bool = False
 
 @dataclass
+class LentOutPeriod:
+    borrower_name: str
+    loan_date: str
+    due_date: str
+    return_date: str | None = None
+    is_active: bool = False
+
+
+@dataclass
+class LentOutHistoryGroup:
+    book_id: int
+    book_title: str
+    periods: list[LentOutPeriod] = field(default_factory=list)
+
+@dataclass
 class BookSearchResultView:
     work_key: str
     title: str
@@ -130,12 +145,19 @@ class LibraryState(rx.State):
     form_genre: str = ""
     form_summary: str = ""
     search_query: str = ""
+    return_condition_rating: str = ""
+    viewing_member_reliability: str = ""
+    viewing_member_book_care: str = ""
     search_results: list[BookSearchResultView] = []
     borrowed_loans: list[BorrowedLoanView] = []
     lent_out_loans: list[LentOutLoanView] = []
+    lent_out_history: list[LentOutHistoryGroup] = []
 
     def set_form_title(self, value: str):
         self.form_title = value
+
+    def set_return_condition_rating(self, value: str):
+        self.return_condition_rating = value
 
     def set_form_author(self, value: str):
         self.form_author = value
@@ -255,6 +277,9 @@ class LibraryState(rx.State):
             return
 
         self.viewing_member_name = member.display_name
+        signals = trust_service.get_trust_signals(member_id)
+        self.viewing_member_reliability = signals.reliability
+        self.viewing_member_book_care = signals.book_care
         self.member_books = await self._build_book_views(book_results)
 
     def load_users(self):
@@ -455,6 +480,8 @@ class LibraryState(rx.State):
         today = dt.date.today()
         views: list[LentOutLoanView] = []
         for loan in loans:
+            if not loan.is_active:
+                continue
             try:
                 book = book_service.get_book(loan.book_id)
                 borrower = user_service.get_user(loan.borrower_id)
@@ -482,6 +509,51 @@ class LibraryState(rx.State):
                 )
             )
         self.lent_out_loans = views
+
+    async def load_lent_out_history(self):
+        """Grouped by book — one entry per book, with every lending
+        period underneath, not one row per loan (Andy's request: avoid
+        "Frankenstein" appearing 1000 times if it's been lent out
+        repeatedly).
+        """
+        self.error_message = ""
+        auth_state = await self.get_state(AuthState)
+        if not auth_state.is_logged_in:
+            self.lent_out_history = []
+            return
+        try:
+            loans = loan_service.list_loans_for_owner(int(auth_state.current_user_id))
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
+
+        groups_by_book: dict[int, LentOutHistoryGroup] = {}
+        for loan in loans:
+            if loan.is_active:
+                continue
+            try:
+                book = book_service.get_book(loan.book_id)
+                borrower = user_service.get_user(loan.borrower_id)
+                book_title = book.title
+                borrower_name = borrower.display_name
+            except DiodatiError:
+                book_title = f"Book {loan.book_id}"
+                borrower_name = "Unknown"
+
+            if loan.book_id not in groups_by_book:
+                groups_by_book[loan.book_id] = LentOutHistoryGroup(
+                    book_id=loan.book_id, book_title=book_title
+                )
+            groups_by_book[loan.book_id].periods.append(
+                LentOutPeriod(
+                    borrower_name=borrower_name,
+                    loan_date=loan.loan_date.isoformat(),
+                    due_date=loan.due_date.isoformat(),
+                    return_date=loan.return_date.isoformat() if loan.return_date else None,
+                    is_active=loan.is_active,
+                )
+            )
+        self.lent_out_history = list(groups_by_book.values())
 
     def reset_form_fields(self):
         """Called on entering Add Book fresh — clears any stale values
@@ -614,11 +686,21 @@ class LibraryState(rx.State):
         if book.active_loan_id is None:
             self.error_message = "No active loan to return."
             return
+
+        label_to_value = {
+            "Better than before": "better_than_before",
+            "Same condition": "same_condition",
+            "Slightly worse": "slightly_worse",
+            "Significantly worse": "significantly_worse",
+        }
+        condition = label_to_value.get(self.return_condition_rating)
+
         try:
-            loan_service.return_loan(book.active_loan_id)
+            loan_service.return_loan(book.active_loan_id, condition_rating=condition)
         except DiodatiError as e:
             self.error_message = str(e)
         else:
+            self.return_condition_rating = ""
             await self.load_books()
 
     async def submit_book_form(self, form_data: dict):

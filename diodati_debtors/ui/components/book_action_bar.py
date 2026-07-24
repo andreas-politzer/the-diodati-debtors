@@ -16,9 +16,17 @@ def book_action_bar(book: BookView) -> rx.Component:
         book.is_own_book,
         rx.cond(
             book.is_on_loan,
-            primary_button(
-                "Mark returned",
-                on_click=lambda: LibraryState.return_book(book),
+            rx.vstack(
+                rx.select(
+                    ["Skip rating", "Better than before", "Same condition", "Slightly worse", "Significantly worse"],
+                    default_value="Skip rating",
+                    on_change=LibraryState.set_return_condition_rating,
+                ),
+                primary_button(
+                    "Mark returned",
+                    on_click=lambda: LibraryState.return_book(book),
+                ),
+                spacing="2",
             ),
             meta_text("Your book"),
         ),
@@ -35,6 +43,3 @@ def book_action_bar(book: BookView) -> rx.Component:
             ),
         ),
     )
-
-
-__all__ = ["book_action_bar"]

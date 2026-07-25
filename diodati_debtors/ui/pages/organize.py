@@ -130,11 +130,22 @@ def organize() -> rx.Component:
             body_text("No pending loan requests."),
         ),
         divider(),
-        page_title("Your Requests"),
+        page_title("Your Pending Requests"),
         rx.cond(
             OrganizeState.sent_requests.length() > 0,
-            rx.foreach(OrganizeState.sent_requests, _sent_request_card),
+            rx.foreach(
+                OrganizeState.sent_requests,
+                lambda r: rx.cond(r.status == "pending", _sent_request_card(r), rx.fragment()),
+            ),
             body_text("You haven't sent any requests."),
+        ),
+        divider(),
+        rx.el.details(
+            rx.el.summary("☞ Request History", cursor="pointer"),
+            rx.foreach(
+                OrganizeState.sent_requests,
+                lambda r: rx.cond(r.status != "pending", _sent_request_card(r), rx.fragment()),
+            ),
         ),
         rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
         max_width="40rem",

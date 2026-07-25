@@ -483,6 +483,7 @@ def _apply_search_and_genre(query, search: str | None, genre: str | None):
                 Book.author.ilike(pattern),
                 Book.isbn.ilike(pattern),
                 Book.location.ilike(pattern),
+                Book.genre.ilike(pattern),
             )
         )
     if genre:

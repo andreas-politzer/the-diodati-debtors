@@ -19,6 +19,7 @@ from ...state.auth_state import AuthState
 from ...state.group_state import GroupState
 from ...state.library_state import BorrowedLoanView, LibraryState
 from ...state.organize_state import OrganizeState
+from ...models.enums import BookGenre
 
 
 def _tab_button(label: str, tab_key: str) -> rx.Component:
@@ -54,6 +55,64 @@ def _club_switcher() -> rx.Component:
             ],
         ),
         spacing="1",
+        margin_bottom="1rem",
+    )
+
+def _book_controls() -> rx.Component:
+    return rx.flex(
+        rx.vstack(
+            meta_text("Search"),
+            rx.input(
+                placeholder="Search anything...",
+                value=LibraryState.library_search_query,
+                on_change=LibraryState.set_library_search_query,
+                font_family=Font.system,
+                font_size=Type.meta,
+            ),
+            rx.cond(
+            (LibraryState.library_search_query != "")
+            | (LibraryState.genre_filter != "All")
+            | (LibraryState.availability_filter != "All")
+            | (LibraryState.sort_option != "Recently added"),
+            rx.link("✕ Clear filters", on_click=LibraryState.reset_book_controls, cursor="pointer"),
+        ),
+            spacing="1",
+        ),
+        rx.vstack(
+            meta_text("Genre"),
+            rx.select(
+                ["All"] + [g.value for g in BookGenre],
+                value=LibraryState.genre_filter,
+                on_change=LibraryState.set_genre_filter,
+                font_family=Font.system,
+                font_size=Type.meta,
+            ),
+            spacing="1",
+        ),
+        rx.vstack(
+            meta_text("Availability"),
+            rx.select(
+                ["All", "Available only"],
+                value=LibraryState.availability_filter,
+                on_change=LibraryState.set_availability_filter,
+                font_family=Font.system,
+                font_size=Type.meta,
+            ),
+            spacing="1",
+        ),
+        rx.vstack(
+            meta_text("Sort"),
+            rx.select(
+                ["Recently added", "Title (A-Z)", "Author (A-Z)", "Availability", "Location"],
+                value=LibraryState.sort_option,
+                on_change=LibraryState.set_sort_option,
+                font_family=Font.system,
+                font_size=Type.meta,
+            ),
+            spacing="1",
+        ),
+        wrap="wrap",
+        spacing="3",
         margin_bottom="1rem",
     )
 
@@ -151,10 +210,26 @@ def dashboard() -> rx.Component:
             margin_bottom="1rem",
         ),
         rx.cond(LibraryState.active_tab == "common", _club_switcher()),
+        rx.cond(
+            (LibraryState.active_tab == "personal") | (LibraryState.active_tab == "common"),
+            _book_controls(),
+        ),
         divider(),
         rx.cond(
             LibraryState.active_tab == "lent_out",
             rx.fragment(
+                rx.vstack(
+                    meta_text("Sort"),
+                    rx.select(
+                        ["Due date", "Loan date", "Book title", "Person"],
+                        value=LibraryState.loan_sort_option,
+                        on_change=LibraryState.set_loan_sort_option,
+                        font_family=Font.system,
+                        font_size=Type.meta,
+                    ),
+                    spacing="1",
+                    margin_bottom="1rem",
+                ),
                 rx.cond(
                     LibraryState.lent_out_loans.length() > 0,
                     rx.grid(
@@ -179,6 +254,18 @@ def dashboard() -> rx.Component:
                 LibraryState.active_tab == "borrowed",
                 rx.fragment(
                     page_title("Currently Borrowed"),
+                    rx.vstack(
+                        meta_text("Sort"),
+                        rx.select(
+                            ["Due date", "Loan date", "Book title", "Person"],
+                            value=LibraryState.loan_sort_option,
+                            on_change=LibraryState.set_loan_sort_option,
+                            font_family=Font.system,
+                            font_size=Type.meta,
+                        ),
+                        spacing="1",
+                        margin_bottom="1rem",
+                    ),
                     rx.cond(
                         LibraryState.borrowed_loans.length() > 0,
                         rx.grid(

@@ -152,6 +152,11 @@ class LibraryState(rx.State):
     request_period_choice: str = "Standard (14 days)"
     request_custom_due_date: str = ""
     request_note: str = ""
+    library_search_query: str = ""
+    genre_filter: str = "All"
+    availability_filter: str = "All"
+    sort_option: str = "Recently added"
+    loan_sort_option: str = "Due date"
     search_results: list[BookSearchResultView] = []
     borrowed_loans: list[BorrowedLoanView] = []
     lent_out_loans: list[LentOutLoanView] = []
@@ -191,6 +196,29 @@ class LibraryState(rx.State):
             return LibraryState.load_borrowed_books
         if tab == "lent_out":
             return LibraryState.load_lent_out_books
+        return LibraryState.load_books
+    
+    def set_library_search_query(self, value: str):
+        self.library_search_query = value
+        return LibraryState.load_books
+
+    def set_genre_filter(self, value: str):
+        self.genre_filter = value
+        return LibraryState.load_books
+
+    def set_availability_filter(self, value: str):
+        self.availability_filter = value
+        return LibraryState.load_books
+
+    def set_sort_option(self, value: str):
+        self.sort_option = value
+        return LibraryState.load_books
+    
+    def reset_book_controls(self):
+        self.library_search_query = ""
+        self.genre_filter = "All"
+        self.availability_filter = "All"
+        self.sort_option = "Recently added"
         return LibraryState.load_books
 
     async def _build_book_views(self, book_results) -> list[BookView]:
@@ -237,10 +265,32 @@ class LibraryState(rx.State):
                 )
             )
         return views
+    
+    def _finalize_book_list(self, views: list[BookView]) -> list[BookView]:
+        """Availability filter and sorting both need the enriched
+        BookView (is_on_loan comes from _build_book_views), so this
+        runs after enrichment, not inside book_service.
+        """
+        if self.availability_filter == "Available only":
+            views = [v for v in views if not v.is_on_loan]
+
+        if self.sort_option == "Title (A-Z)":
+            views = sorted(views, key=lambda b: b.title.lower())
+        elif self.sort_option == "Author (A-Z)":
+            views = sorted(views, key=lambda b: (b.author or "").lower())
+        elif self.sort_option == "Location":
+            views = sorted(views, key=lambda b: (b.location or "").lower())
+        elif self.sort_option == "Availability":
+            views = sorted(views, key=lambda b: b.is_on_loan)
+        # "Recently added" is the default order the service already returns.
+
+        return views
 
     async def load_books(self):
         self.error_message = ""
         auth_state = await self.get_state(AuthState)
+        search = self.library_search_query or None
+        genre = None if self.genre_filter in ("", "All") else self.genre_filter
 
         try:
             if self.active_tab == "personal":
@@ -248,7 +298,7 @@ class LibraryState(rx.State):
                     self.books = []
                     return
                 book_results = book_service.list_books_for_owner(
-                    int(auth_state.current_user_id)
+                    int(auth_state.current_user_id), search=search, genre=genre
                 )
             else:
                 group_state = await self.get_state(GroupState)
@@ -256,13 +306,14 @@ class LibraryState(rx.State):
                     self.books = []
                     return
                 book_results = book_service.list_books_for_group(
-                    int(group_state.current_group_id)
+                    int(group_state.current_group_id), search=search, genre=genre
                 )
         except DiodatiError as e:
             self.error_message = str(e)
             return
 
-        self.books = await self._build_book_views(book_results)
+        views = await self._build_book_views(book_results)
+        self.books = self._finalize_book_list(views)
 
     async def load_member_library(self):
         self.error_message = ""
@@ -422,6 +473,24 @@ class LibraryState(rx.State):
             self.pending_clear_summary = False
             await self.load_book_detail()
 
+    def _sort_loan_views(self, views: list):
+        """Shared sorting for BorrowedLoanView/LentOutLoanView — both
+        have due_date/loan_date/book_title as ISO strings, and either
+        owner_name (Borrowed) or borrower_name (Lent-Out).
+        """
+        if not views:
+            return views
+
+        if self.loan_sort_option == "Loan date":
+            return sorted(views, key=lambda v: v.loan_date)
+        if self.loan_sort_option == "Book title":
+            return sorted(views, key=lambda v: v.book_title.lower())
+        if self.loan_sort_option == "Person":
+            name_attr = "owner_name" if hasattr(views[0], "owner_name") else "borrower_name"
+            return sorted(views, key=lambda v: getattr(v, name_attr).lower())
+        # "Due date" is the default.
+        return sorted(views, key=lambda v: v.due_date)
+
     async def load_borrowed_books(self):
         """Populate 'My Borrowed Books' — active loans (with overdue/
         due-soon status) and full borrow history, split in the UI by
@@ -474,7 +543,7 @@ class LibraryState(rx.State):
                     is_due_soon=is_due_soon,
                 )
             )
-        self.borrowed_loans = views
+        self.borrowed_loans = self._sort_loan_views(views)
 
     async def load_lendable_book_options(self):
         """Own books currently available (no active loan) — feeds the
@@ -546,7 +615,7 @@ class LibraryState(rx.State):
                     is_due_soon=is_due_soon,
                 )
             )
-        self.lent_out_loans = views
+        self.lent_out_loans = self._sort_loan_views(views)
 
     async def load_lent_out_history(self):
         """Grouped by book — one entry per book, with every lending
@@ -832,6 +901,11 @@ class LibraryState(rx.State):
 
     def cancel_delete(self):
         self.pending_delete_book_id = 0
+
+    def set_loan_sort_option(self, value: str):
+        self.loan_sort_option = value
+        self.borrowed_loans = self._sort_loan_views(self.borrowed_loans)
+        self.lent_out_loans = self._sort_loan_views(self.lent_out_loans)
 
     async def delete_book(self, book_id: int):
         self.error_message = ""

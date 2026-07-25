@@ -24,12 +24,14 @@ from .ui.pages.synopsis import synopsis
 from .ui.pages.book_discussion import book_discussion
 from .ui.pages.communication import communication
 from .ui.pages.lent_out_books import lent_out_books
+from .ui.pages.lend_to_contact import lend_to_contact
 from .state.review_state import ReviewState
 from .state.post_state import PostState
 from .state.auth_state import AuthState
 from .state.group_state import GroupState
 from .state.library_state import LibraryState
 from .state.organize_state import OrganizeState
+from .state.contact_state import ContactState
 
 
 class State(rx.State):
@@ -160,4 +162,9 @@ app.add_page(
     lent_out_books,
     route="/lent-out-history",
     on_load=[AuthState.check_auth, LibraryState.load_lent_out_history],
+)
+app.add_page(
+    lend_to_contact,
+    route="/lend-to-contact",
+    on_load=[AuthState.check_auth, ContactState.load_contacts, LibraryState.load_lendable_book_options],
 )

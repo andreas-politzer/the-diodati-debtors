@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 import reflex as rx
 
 from ..core.exceptions import DiodatiError
-from ..services import book_service, loan_service, trust_service, user_service
+from ..services import book_service, contact_service, loan_service, trust_service, user_service
 from .auth_state import AuthState
 from .group_state import GroupState
 
@@ -152,6 +152,7 @@ class LibraryState(rx.State):
     borrowed_loans: list[BorrowedLoanView] = []
     lent_out_loans: list[LentOutLoanView] = []
     lent_out_history: list[LentOutHistoryGroup] = []
+    lendable_book_options: list[str] = []
 
     def set_form_title(self, value: str):
         self.form_title = value
@@ -465,6 +466,26 @@ class LibraryState(rx.State):
             )
         self.borrowed_loans = views
 
+    async def load_lendable_book_options(self):
+        """Own books currently available (no active loan) — feeds the
+        book picker on the Lend-to-Contact page.
+        """
+        auth_state = await self.get_state(AuthState)
+        if not auth_state.is_logged_in:
+            self.lendable_book_options = []
+            return
+        try:
+            books = book_service.list_books_for_owner(int(auth_state.current_user_id))
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
+
+        book_ids = [b.id for b in books]
+        active_loans = loan_service.get_active_loans_for_books(book_ids)
+        self.lendable_book_options = [
+            f"{b.id}: {b.title}" for b in books if b.id not in active_loans
+        ]
+
     async def load_lent_out_books(self):
         self.error_message = ""
         auth_state = await self.get_state(AuthState)
@@ -483,13 +504,20 @@ class LibraryState(rx.State):
             if not loan.is_active:
                 continue
             try:
-                book = book_service.get_book(loan.book_id)
-                borrower = user_service.get_user(loan.borrower_id)
-                book_title = book.title
-                borrower_name = borrower.display_name
+                book_title = book_service.get_book(loan.book_id).title
             except DiodatiError:
                 book_title = f"Book {loan.book_id}"
-                borrower_name = "Unknown"
+
+            if loan.contact_id is not None:
+                try:
+                    borrower_name = f"{contact_service.get_contact(loan.contact_id).name} (contact)"
+                except DiodatiError:
+                    borrower_name = "Unknown contact"
+            else:
+                try:
+                    borrower_name = user_service.get_user(loan.borrower_id).display_name
+                except DiodatiError:
+                    borrower_name = "Unknown"
 
             is_overdue = loan.is_active and loan.due_date < today
             is_due_soon = loan.is_active and not is_overdue and (loan.due_date - today).days <= 3
@@ -532,13 +560,20 @@ class LibraryState(rx.State):
             if loan.is_active:
                 continue
             try:
-                book = book_service.get_book(loan.book_id)
-                borrower = user_service.get_user(loan.borrower_id)
-                book_title = book.title
-                borrower_name = borrower.display_name
+                book_title = book_service.get_book(loan.book_id).title
             except DiodatiError:
                 book_title = f"Book {loan.book_id}"
-                borrower_name = "Unknown"
+
+            if loan.contact_id is not None:
+                try:
+                    borrower_name = f"{contact_service.get_contact(loan.contact_id).name} (contact)"
+                except DiodatiError:
+                    borrower_name = "Unknown contact"
+            else:
+                try:
+                    borrower_name = user_service.get_user(loan.borrower_id).display_name
+                except DiodatiError:
+                    borrower_name = "Unknown"
 
             if loan.book_id not in groups_by_book:
                 groups_by_book[loan.book_id] = LentOutHistoryGroup(

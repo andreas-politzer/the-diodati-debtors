@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import DateTime, Enum, ForeignKey
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.time import utcnow
@@ -37,6 +37,9 @@ class LoanRequest(Base):
     )
     requested_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False
+    )
+    requested_due_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True
     )
     reviewed_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
     reviewed_by: Mapped[int | None] = mapped_column(

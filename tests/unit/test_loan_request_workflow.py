@@ -8,6 +8,7 @@ directly (still used internally, e.g. by approve_loan_request).
 from __future__ import annotations
 
 import pytest
+import datetime as dt
 
 from diodati_debtors.core.exceptions import (
     BookAlreadyOnLoanError,
@@ -153,3 +154,47 @@ def test_decline_loan_request_creates_no_loan(db):
     with db() as session:
         count = session.query(Loan).filter_by(book_id=book_id).count()
         assert count == 0
+
+def test_request_to_borrow_with_custom_due_date_and_note(db):
+    owner_id = _make_user(db, "owner_custom1@example.com")
+    requester_id = _make_user(db, "requester_custom1@example.com")
+    book_id = _make_book(db, owner_id, "Vacation Book")
+
+    custom_due_date = dt.date.today() + dt.timedelta(days=21)
+    result = loan_service.request_to_borrow(
+        book_id=book_id,
+        requester_id=requester_id,
+        requested_due_date=custom_due_date,
+        note="I'm on vacation for three weeks.",
+    )
+
+    assert result.requested_due_date == custom_due_date
+    assert result.note == "I'm on vacation for three weeks."
+
+
+def test_request_to_borrow_without_custom_period_leaves_fields_none(db):
+    owner_id = _make_user(db, "owner_custom2@example.com")
+    requester_id = _make_user(db, "requester_custom2@example.com")
+    book_id = _make_book(db, owner_id, "Standard Book")
+
+    result = loan_service.request_to_borrow(book_id=book_id, requester_id=requester_id)
+
+    assert result.requested_due_date is None
+    assert result.note is None
+
+
+def test_approve_loan_request_uses_requested_due_date_when_provided(db):
+    owner_id = _make_user(db, "owner_custom3@example.com")
+    requester_id = _make_user(db, "requester_custom3@example.com")
+    book_id = _make_book(db, owner_id, "Custom Period Book")
+
+    custom_due_date = dt.date.today() + dt.timedelta(days=30)
+    request = loan_service.request_to_borrow(
+        book_id=book_id, requester_id=requester_id, requested_due_date=custom_due_date,
+    )
+    loan_service.approve_loan_request(request.id, reviewer_id=owner_id)
+
+    with db() as session:
+        from diodati_debtors.models.loan import Loan
+        loan = session.query(Loan).filter_by(book_id=book_id).one()
+        assert loan.due_date == custom_due_date

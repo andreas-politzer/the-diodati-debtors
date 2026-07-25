@@ -31,6 +31,7 @@ from ..core.exceptions import (
     RequestNotPendingError,
 )
 from ..core.time import today, utcnow
+from ..core.normalize import blank_to_none
 from ..db.session import get_session
 from ..models.book import Book
 from ..models.enums import RequestStatus
@@ -51,6 +52,8 @@ class LoanRequestResult:
     requested_at: dt.datetime
     reviewed_at: dt.datetime | None
     reviewed_by: int | None
+    requested_due_date: dt.date | None
+    note: str | None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -102,6 +105,8 @@ def _to_request_result(request: LoanRequest) -> LoanRequestResult:
         requested_at=request.requested_at,
         reviewed_at=request.reviewed_at,
         reviewed_by=request.reviewed_by,
+        requested_due_date=request.requested_due_date,
+        note=request.note,
     )
 
 
@@ -290,15 +295,20 @@ def list_loans_for_book(book_id: int) -> list[LoanResult]:
 # --- Loan-request workflow -------------------------------------------------
 
 
-def request_to_borrow(book_id: int, requester_id: int) -> LoanRequestResult:
-    """Submit a request to borrow a book.
+def request_to_borrow(
+    book_id: int,
+    requester_id: int,
+    requested_due_date: dt.date | None = None,
+    note: str | None = None,
+) -> LoanRequestResult:
+    """Submit a request to borrow a book. requested_due_date/note are
+    optional — a requester may prefer a longer period (e.g. "I'm on
+    vacation for three weeks") and leave a short note explaining why.
 
     Raises:
         NotFoundError: if the book or requester does not exist.
         CannotRequestOwnBookError: if the requester owns the book.
-        BookAlreadyOnLoanError: if the book already has an active loan
-            (requesting an already-loaned book is a Reservation concept
-            — deferred, see Domain Model v2 — not a LoanRequest).
+        BookAlreadyOnLoanError: if the book already has an active loan.
         DuplicateLoanRequestError: if the requester already has a
             PENDING request for this book.
     """
@@ -335,7 +345,12 @@ def request_to_borrow(book_id: int, requester_id: int) -> LoanRequestResult:
                 f"User {requester_id} already has a pending request for book {book_id}."
             )
 
-        request = LoanRequest(book_id=book_id, requester_id=requester_id)
+        request = LoanRequest(
+            book_id=book_id,
+            requester_id=requester_id,
+            requested_due_date=requested_due_date,
+            note=blank_to_none(note),
+        )
         session.add(request)
         session.flush()
         return _to_request_result(request)
@@ -426,11 +441,14 @@ def approve_loan_request(
         request.reviewed_at = utcnow()
         request.reviewed_by = reviewer_id
 
+        resolved_due_date = request.requested_due_date or (
+            today() + dt.timedelta(days=due_in_days)
+        )
         loan = Loan(
             book_id=request.book_id,
             borrower_id=request.requester_id,
             loan_date=today(),
-            due_date=today() + dt.timedelta(days=due_in_days),
+            due_date=resolved_due_date,
             return_date=None,
         )
         session.add(loan)

@@ -71,6 +71,12 @@ def privacy() -> rx.Component:
             "sent as part of these requests. This feature is optional "
             "and only triggered when a book's owner explicitly requests it."
         ),
+        body_text(
+            "The 'Support' button loads a small script from Liberapay, "
+            "an independent donation platform. No data is shared with "
+            "Liberapay unless you choose to click through and donate "
+            "yourself."
+        ),
         divider(),
         page_title("Cookies"),
         body_text(

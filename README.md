@@ -18,7 +18,7 @@ are the members who haven't returned a borrowed book yet.
 
 ## Status
 
-**Working and tested (130 passing unit tests)**
+**Working and tested (134 passing unit tests)**
 
 - Full auth flow: registration, login, session cookie
 - Multi-club membership: found a club, browse/join others, founder
@@ -27,6 +27,8 @@ are the members who haven't returned a borrowed book yet.
   switcher), My Borrowed Books, and My Lent-Out Books as four dashboard
   tabs — each shows only what's currently relevant, with full history
   (borrow history, lent-out history grouped by book) on dedicated pages
+- Search, genre/availability filters, and sorting across Personal/Common
+  Library, plus sorting for Borrowed/Lent-Out books
 - **My Bookmates**: Club Members and personal Contacts side by side —
   Contacts are private, non-registered borrowers (a grandmother, a
   neighbour) who never touch the app themselves; the owner lends and

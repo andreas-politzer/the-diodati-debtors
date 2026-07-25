@@ -26,6 +26,21 @@ def shell(
         if top_right is not None
         else rx.fragment()
     )
+    support_button = rx.link(
+        rx.box(
+            "☞ Support",
+            background_color=Color.accent,
+            color=Color.text,
+            font_family=Font.system,
+            font_size="0.8rem",
+            padding_x=Space.md,
+            padding_y=Space.sm,
+            border=Border.hairline,
+            cursor="pointer",
+        ),
+        href="https://liberapay.com/andreas_politzer/donate",
+        is_external=True,
+    )
     return rx.fragment(
         rx.el.link(rel="preconnect", href="https://fonts.googleapis.com"),
         rx.el.link(
@@ -42,6 +57,7 @@ def shell(
                 margin_x="auto",
                 padding=Space.lg,
             ),
+            rx.box(support_button, position="fixed", bottom=Space.md, right=Space.md, z_index="10"),
             rx.box(
                 rx.hstack(
                     rx.link(

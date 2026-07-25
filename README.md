@@ -18,7 +18,7 @@ are the members who haven't returned a borrowed book yet.
 
 ## Status
 
-**Working and tested (112 passing unit tests)**
+**Working and tested (130 passing unit tests)**
 
 - Full auth flow: registration, login, session cookie
 - Multi-club membership: found a club, browse/join others, founder
@@ -27,33 +27,37 @@ are the members who haven't returned a borrowed book yet.
   switcher), My Borrowed Books, and My Lent-Out Books as four dashboard
   tabs — each shows only what's currently relevant, with full history
   (borrow history, lent-out history grouped by book) on dedicated pages
-- Members page: every member of every club you belong to, with a
-  read-only view into each member's personal library
+- **My Bookmates**: Club Members and personal Contacts side by side —
+  Contacts are private, non-registered borrowers (a grandmother, a
+  neighbour) who never touch the app themselves; the owner lends and
+  manages the loan directly. Same Trust Signals, same Loan model, no
+  duplicated logic — "a Contact is just a mate who isn't a club member
+  yet"
 - Full book CRUD: add, edit, delete (owner-only, blocked by loan
   history), Open Library ISBN lookup and title search with cover
   previews
-- Lending via a request/approval workflow, with a unified "Organize"
-  inbox for pending club-join and loan requests
+- Lending via a request/approval workflow with a real dialog: the
+  requester can propose a custom loan period and leave a note (e.g.
+  "I'm on vacation for 3 weeks"), the owner can approve or decline with
+  a reply message. "Mark returned" also opens a dialog to optionally
+  rate the book's condition
+- **Organize**: "What needs my attention?" — pending club-join and loan
+  requests, split from **Your Requests** (what you've sent, pending vs.
+  a collapsible history) — keeps the page from becoming a scroll
+  monster as history grows
 - **Trust signals**: Reliability and Book Care, two independent
   qualitative signals (never numerical scores, never rankings),
-  computed on demand from loan facts and shown only where they matter —
-  in the loan-request dialog and on member profiles
-- Communication: Club Feed and Global Board (posts + threaded
-  comments), built on a single Post entity that also supports per-book
-  Discussions as a third projection of the same data — with a
-  collapsible Community Guidelines panel above every composer
-- Reviews: owner/borrower-only, one editable review per person per
-  book, rated with a recurring owl motif instead of traditional stars
-- Synopsis pipeline: a book summary can be written manually, imported
-  from Open Library (best effort — upstream availability varies), or
-  generated with Google Gemini. Every synopsis is clearly labelled by
-  source, editable, and removable by the book's owner
+  computed on demand from loan facts, shown in the loan-request dialog
+  and on member/contact profiles
+- **Community**: Club Feed, Global Board, and per-book Discussions (one
+  shared Post entity, different projections), Reviews (owner/borrower-
+  only, owl rating instead of stars), and a three-source Synopsis
+  pipeline (manual, Open Library, Google Gemini)
 - A redesigned landing page: a real 1835 Villa Diodati engraving, the
   project's origin story, and a philosophy statement — an invitation
   rather than an immediate login wall
-- Legal basics: Imprint and Privacy Policy pages, transparently
-  documenting every third-party service used (Open Library, Google
-  Gemini, Railway)
+- Legal basics: Imprint and Privacy Policy pages, transparent about
+  every third-party service used
 - Design system (custom typography, flat/no-shadow visual language,
   documented design contract) applied throughout
 - Deployed and live on Railway (EU West, Amsterdam), tested by real
@@ -61,23 +65,25 @@ are the members who haven't returned a borrowed book yet.
 
 **Deliberately deferred (documented concepts, not yet implemented)**
 
-- Search and filtering, tags for books, custom loan periods on request
-- Reservations and lending to non-registered contacts
+- Search and filtering, tags for books, bulk import from existing
+  spreadsheets/exports
+- Reservations
 - Deeper Open Library integration (Work API for more reliable
   descriptions)
 - A broader platform vision (public profiles, member discovery,
   private messaging) — intentionally postponed to keep the project
   focused on book clubs rather than becoming a general-purpose social
   network
-- Book-condition trend tracking beyond the current single signal, and
-  The Diodati Matchmaker — a semantic recommendation agent that
+- A horizontal navigation redesign (currently a vertical link list)
+- The Diodati Matchmaker — a semantic recommendation agent that
   gradually evolves from rule-based recommendations to
   embedding-powered suggestions
 
 See the project documentation (`Implementation Specification.md`,
 `Domain Model v2.md`, `Communication Domain Model.md`,
-`Platform Vision.md`, and `AI Matchmaker Vision.md`) for the complete
-roadmap and architectural decisions.
+`Platform Vision.md`, `AI Matchmaker Vision.md`,
+`Bulk Import Domain Model.md`) for the complete roadmap and
+architectural decisions.
 
 ## Design Philosophy
 
@@ -129,9 +135,9 @@ for email addresses, clubs, and assigned roles).
 - `core/` — framework-agnostic configuration, exceptions, normalization/time policy, password hashing
 - `db/` — SQLAlchemy engine, sessions, declarative base (schema source of truth via SQLAlchemy models and Alembic migrations)
 - `models/` — SQLAlchemy entities only; no business logic
-- `services/` — business logic organized by bounded context (`auth_service`, `user_service`, `book_service`, `loan_service`, `group_service`, `post_service`, `comment_service`, `review_service`, `trust_service`, ...)
-- External integrations live in `services/external/` as thin API clients (Open Library, Google Gemini, future providers). They contain no business logic and are responsible only for communicating with third-party services.
-- `state/` — the only layer connecting Reflex UI and services, split by bounded context (`AuthState`, `GroupState`, `LibraryState`, `OrganizeState`, `PostState`, `ReviewState`)
+- `services/` — business logic organized by bounded context (`auth_service`, `user_service`, `book_service`, `loan_service`, `group_service`, `contact_service`, `post_service`, `comment_service`, `review_service`, `trust_service`, ...)
+- External integrations live in `services/external/` as thin API clients (Open Library, Google Gemini). They contain no business logic and are responsible only for communicating with third-party services.
+- `state/` — the only layer connecting Reflex UI and services, split by bounded context (`AuthState`, `GroupState`, `LibraryState`, `OrganizeState`, `PostState`, `ReviewState`, `ContactState`)
 - `ui/` — presentation only; imports state, never services or models directly; reusable components shared across pages
 
 Layering is a hard constraint.
@@ -145,15 +151,18 @@ Business rules live exclusively inside the service layer.
 Services return domain objects and foreign-key IDs rather than
 presentation-ready display names. UI-specific enrichment belongs to
 the State layer, keeping the separation of responsibilities consistent
-across every feature. Signals like Reliability/Book Care follow the
-same "store facts, calculate state" principle — nothing is ever stored
-pre-computed.
+across every feature. Trust signals follow the same "store facts,
+calculate state" principle — nothing is ever stored pre-computed.
+
+A Loan's borrower is either a registered User or a personal Contact —
+never both, never neither, enforced in the service layer, never as a
+database constraint.
 
 ## Testing
 
 Current test suite:
 
-- 112 passing unit tests
+- 130 passing unit tests
 - Service-layer and domain-rule focused
 - Fast execution suitable for continuous development
 

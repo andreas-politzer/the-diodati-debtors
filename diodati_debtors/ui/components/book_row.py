@@ -1,6 +1,8 @@
 """Shared book-row rendering — used by the dashboard and the Members
 detail page. Pure presentation; all workflow actions live in
-BookActionBar.
+BookActionBar. Compact by design: sized to fit multiple columns in a
+responsive grid (see the library pages' grid wrapper), not a full-width
+single-column row.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from ...state.library_state import BookView
 
 def book_row(book: BookView) -> rx.Component:
     return card(
-        page_title(book.title),
+        page_title(book.title, font_size="1.1rem"),
         rx.cond(book.author, body_text(book.author)),
         rx.cond(book.location, meta_text(f"Location: {book.location}")),
         rx.cond(book.genre, meta_text(f"Genre: {book.genre}")),
@@ -29,8 +31,8 @@ def book_row(book: BookView) -> rx.Component:
         ),
         rx.link(
             rx.hstack(
-                rx.text("☞", font_size="2rem", line_height="1"),
-                rx.text("View details", font_size=Type.body, font_family=Font.body),
+                rx.text("☞", font_size="1.5rem", line_height="1"),
+                rx.text("View details", font_size=Type.meta, font_family=Font.body),
                 spacing="2",
                 align="center",
             ),
@@ -39,7 +41,7 @@ def book_row(book: BookView) -> rx.Component:
             display="block",
         ),
         book_action_bar(book),
-        margin_bottom="1rem",
+        height="100%",
     )
 
 

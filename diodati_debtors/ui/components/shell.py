@@ -4,9 +4,9 @@ Every page composes its content inside `shell(...)`. This is the only
 place that wires up the Google Fonts preconnect/stylesheet links, so
 individual pages never need to think about font loading.
 
-Phase 1 scope: layout skeleton only. No navigation logic, no auth
-state, no feed/book content — those arrive with the vertical slice in
-a later phase.
+top_right is optional — pages that need something in the top-right
+corner (e.g. a Log out link) pass a component; pages that don't
+(Landing, Imprint, ...) are unaffected, since it defaults to nothing.
 """
 
 from __future__ import annotations
@@ -16,7 +16,16 @@ import reflex as rx
 from ..tokens import Border, Color, Font, Space
 
 
-def shell(*children: rx.Component, max_width: str = "40rem") -> rx.Component:
+def shell(
+    *children: rx.Component,
+    max_width: str = "40rem",
+    top_right: rx.Component | None = None,
+) -> rx.Component:
+    top_right_box = (
+        rx.box(top_right, position="absolute", top=Space.md, right=Space.md)
+        if top_right is not None
+        else rx.fragment()
+    )
     return rx.fragment(
         rx.el.link(rel="preconnect", href="https://fonts.googleapis.com"),
         rx.el.link(
@@ -25,6 +34,7 @@ def shell(*children: rx.Component, max_width: str = "40rem") -> rx.Component:
             cross_origin="",
         ),
         rx.box(
+            top_right_box,
             rx.box(
                 *children,
                 max_width=max_width,
@@ -48,6 +58,13 @@ def shell(*children: rx.Component, max_width: str = "40rem") -> rx.Component:
                         font_size="0.7rem",
                         color=Color.text_soft,
                     ),
+                    rx.link(
+                        "Manual",
+                        href="/manual",
+                        font_family=Font.system,
+                        font_size="0.7rem",
+                        color=Color.text_soft,
+                    ),
                     spacing="3",
                     justify="center",
                 ),
@@ -57,6 +74,7 @@ def shell(*children: rx.Component, max_width: str = "40rem") -> rx.Component:
             background_color=Color.background,
             min_height="100vh",
             width="100%",
+            position="relative",
         ),
     )
 

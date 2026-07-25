@@ -14,7 +14,7 @@ from ..components.shell import shell
 
 def communication() -> rx.Component:
     return shell(
-        page_title("Communication"),
+        page_title("Communication", margin_bottom="1rem"),
         rx.link("☞ Club Feed", href="/club-feed", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Global Board", href="/board", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),

@@ -58,11 +58,16 @@ def display_numeral(value: str, **props) -> rx.Component:
 
 
 def page_title(text: str, **props) -> rx.Component:
-    """Page-level heading (e.g. "The Library", "The Feed")."""
+    """Page-level heading (e.g. "The Library", "The Feed"). Accepts an
+    optional font_size override via props — extracted first to avoid
+    a duplicate-keyword conflict with the default below (see the
+    landing-page incident, project vault).
+    """
+    font_size = props.pop("font_size", Type.display_sm)
     return rx.heading(
         text,
         font_family=Font.display,
-        font_size=Type.display_sm,
+        font_size=font_size,
         letter_spacing=Type.tracking_display,
         color=Color.text,
         **props,

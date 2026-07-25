@@ -25,6 +25,7 @@ from .ui.pages.book_discussion import book_discussion
 from .ui.pages.communication import communication
 from .ui.pages.lent_out_books import lent_out_books
 from .ui.pages.lend_to_contact import lend_to_contact
+from .ui.pages.manual import manual
 from .state.review_state import ReviewState
 from .state.post_state import PostState
 from .state.auth_state import AuthState
@@ -167,4 +168,7 @@ app.add_page(
     members,
     route="/members",
     on_load=[AuthState.check_auth, GroupState.load_my_groups, GroupState.load_members_overview, ContactState.load_contacts],
+)
+app.add_page(
+    manual, route="/manual"
 )

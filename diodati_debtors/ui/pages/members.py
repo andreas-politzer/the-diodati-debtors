@@ -51,7 +51,7 @@ def _contact_summary(contact: ContactView) -> rx.Component:
 def members() -> rx.Component:
     return shell(
         page_title("My Bookmates"),
-        rx.box(height="1rem"),
+        rx.box(height="2rem"),
         rx.hstack(
             rx.vstack(
                 page_title("Club Members"),

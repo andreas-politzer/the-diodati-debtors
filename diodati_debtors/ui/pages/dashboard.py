@@ -64,7 +64,7 @@ def _loan_row(loan: BorrowedLoanView) -> rx.Component:
     invented symbol).
     """
     return card(
-        page_title(loan.book_title),
+        page_title(loan.book_title, font_size="1.1rem"),
         meta_text(f"Owned by {loan.owner_name}"),
         meta_text(f"Loaned {loan.loan_date}, due {loan.due_date}"),
         rx.cond(
@@ -79,7 +79,7 @@ def _loan_row(loan: BorrowedLoanView) -> rx.Component:
 
 def _lent_out_row(loan) -> rx.Component:
     return card(
-        page_title(loan.book_title),
+        page_title(loan.book_title, font_size="1.1rem"),
         meta_text(f"Lent to {loan.borrower_name}"),
         meta_text(f"Loaned {loan.loan_date}, due {loan.due_date}"),
         rx.cond(
@@ -109,19 +109,13 @@ def dashboard() -> rx.Component:
                 page_title("My Library"),
             ),
         ),
-        meta_text(f"Logged in as {AuthState.current_user_display_name}"),
+        meta_text(f"Logged in as {AuthState.current_user_display_name}", margin_bottom="1rem"),
         rx.link("☞ Add a book", href="/add-book", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Clubs", href="/clubs", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Bookmates", href="/members", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Organize", href="/organize", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Communication", href="/communication", margin_bottom="0.5rem", display="block"),
-        rx.link(
-            "☞ Log out",
-            href="/",
-            on_click=[AuthState.logout, GroupState.clear_selection],
-            margin_bottom="1rem",
-            display="block",
-        ),
+        
         rx.cond(
             LibraryState.error_message != "",
             rx.text(
@@ -150,9 +144,14 @@ def dashboard() -> rx.Component:
             rx.fragment(
                 rx.cond(
                     LibraryState.lent_out_loans.length() > 0,
-                    rx.foreach(
-                        LibraryState.lent_out_loans,
-                        lambda loan: rx.cond(loan.is_active, _lent_out_row(loan), rx.fragment()),
+                    rx.grid(
+                        rx.foreach(
+                            LibraryState.lent_out_loans,
+                            lambda loan: rx.cond(loan.is_active, _lent_out_row(loan), rx.fragment()),
+                        ),
+                        columns="repeat(auto-fill, minmax(220px, 1fr))",
+                        gap="1rem",
+                        width="100%",
                     ),
                     body_text("You haven't lent out any books right now."),
                 ),
@@ -169,17 +168,27 @@ def dashboard() -> rx.Component:
                     page_title("Currently Borrowed"),
                     rx.cond(
                         LibraryState.borrowed_loans.length() > 0,
-                        rx.foreach(
-                            LibraryState.borrowed_loans,
-                            lambda loan: rx.cond(loan.is_active, _loan_row(loan), rx.fragment()),
+                        rx.grid(
+                            rx.foreach(
+                                LibraryState.borrowed_loans,
+                                lambda loan: rx.cond(loan.is_active, _loan_row(loan), rx.fragment()),
+                            ),
+                            columns="repeat(auto-fill, minmax(220px, 1fr))",
+                            gap="1rem",
+                            width="100%",
                         ),
                         body_text("You haven't borrowed any books right now."),
                     ),
                     divider(),
                     page_title("Borrow History"),
-                    rx.foreach(
-                        LibraryState.borrowed_loans,
-                        lambda loan: rx.cond(loan.is_active == False, _loan_row(loan), rx.fragment()),
+                    rx.grid(
+                        rx.foreach(
+                            LibraryState.borrowed_loans,
+                            lambda loan: rx.cond(loan.is_active == False, _loan_row(loan), rx.fragment()),
+                        ),
+                        columns="repeat(auto-fill, minmax(220px, 1fr))",
+                        gap="1rem",
+                        width="100%",
                     ),
                 ),
                 rx.cond(
@@ -203,7 +212,12 @@ def dashboard() -> rx.Component:
                     ),
                     rx.cond(
                         LibraryState.books.length() > 0,
-                        rx.foreach(LibraryState.books, book_row),
+                        rx.grid(
+                            rx.foreach(LibraryState.books, book_row),
+                            columns="repeat(auto-fill, minmax(220px, 1fr))",
+                            gap="1rem",
+                            width="100%",
+                        ),
                         rx.cond(
                             LibraryState.active_tab == "common",
                             body_text("This club doesn't have any books yet."),
@@ -218,7 +232,12 @@ def dashboard() -> rx.Component:
                 ),
             ),
         ),
-        max_width="48rem",
+        max_width="80rem",
+        top_right=rx.link(
+            "☞ Log out",
+            href="/",
+            on_click=[AuthState.logout, GroupState.clear_selection],
+        ),
     )
 
 

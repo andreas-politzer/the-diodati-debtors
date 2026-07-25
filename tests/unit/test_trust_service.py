@@ -148,6 +148,40 @@ def test_unrated_loans_are_ignored_for_book_care(db):
 
     assert signals.book_care == "Excellent"
 
+def test_contact_cold_start_says_new_contact_not_new_member(db):
+    from diodati_debtors.services import book_service, contact_service, loan_service
+
+    owner_id = _make_user(db, "owner_trust_contact1@example.com")
+    book_id = _make_book(db, owner_id, "Untouched Contact Book")
+    contact = contact_service.create_contact(owner_id=owner_id, name="Grandma")
+    # Active loan only, never returned — should not count as completed.
+    loan_service.lend_to_contact(
+        book_id=book_id, owner_id=owner_id, contact_id=contact.id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14), loan_date=REFERENCE_DATE,
+    )
+
+    signals = trust_service.get_trust_signals_for_contact(contact.id)
+
+    assert signals.reliability == "New Contact"
+    assert signals.book_care == "Not Yet Rated"
+
+
+def test_contact_reliability_after_on_time_return(db):
+    from diodati_debtors.services import book_service, contact_service, loan_service
+
+    owner_id = _make_user(db, "owner_trust_contact2@example.com")
+    book_id = _make_book(db, owner_id, "Contact Punctual Book")
+    contact = contact_service.create_contact(owner_id=owner_id, name="Neighbour")
+    loan = loan_service.lend_to_contact(
+        book_id=book_id, owner_id=owner_id, contact_id=contact.id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14), loan_date=REFERENCE_DATE,
+    )
+    loan_service.return_loan(loan.id, return_date=REFERENCE_DATE + dt.timedelta(days=14))
+
+    signals = trust_service.get_trust_signals_for_contact(contact.id)
+
+    assert signals.reliability == "Excellent"
+
 
 def test_trust_service_has_no_reflex_dependency():
     with open(trust_service.__file__, encoding="utf-8") as f:

@@ -4,6 +4,12 @@ A Loan links exactly one Book to one borrowing User, with a loan date,
 a due date, and an optional return date. `return_date IS NULL` means
 the loan is currently active.
 
+Exactly one of borrower_id/contact_id is set — a loan's borrower is
+either a registered User or a personal Contact (never a Club Member
+requirement; see Domain Model, "External Contacts"). This invariant is
+enforced in the service layer, never as a database constraint,
+consistent with the project's architecture.
+
 The rule "a book may not have two active loans at once" is NOT enforced
 here — MySQL has no partial unique index, and business rules live in
 the service layer per the Architecture Contract. This model only
@@ -33,8 +39,11 @@ class Loan(Base):
     book_id: Mapped[int] = mapped_column(
         ForeignKey("books.id"), nullable=False, index=True
     )
-    borrower_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"), nullable=False, index=True
+    borrower_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
+    contact_id: Mapped[int | None] = mapped_column(
+        ForeignKey("contacts.id"), nullable=True, index=True
     )
     loan_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     due_date: Mapped[dt.date] = mapped_column(Date, nullable=False)
@@ -50,7 +59,8 @@ class Loan(Base):
     )
 
     book: Mapped["Book"] = relationship(back_populates="loans")
-    borrower: Mapped["User"] = relationship(back_populates="loans")
+    borrower: Mapped["User | None"] = relationship(back_populates="loans")
+    contact: Mapped["Contact | None"] = relationship()
 
     @property
     def is_active(self) -> bool:

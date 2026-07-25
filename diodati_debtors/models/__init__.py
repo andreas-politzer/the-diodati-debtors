@@ -11,6 +11,7 @@ from .loan_request import LoanRequest
 from .post import Post
 from .comment import Comment
 from .review import Review
+from .contact import Contact
 
 __all__ = [
     "User",
@@ -23,4 +24,5 @@ __all__ = [
     "Post",
     "Comment",
     "Review",
+    "Contact",
 ]

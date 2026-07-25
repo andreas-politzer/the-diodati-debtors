@@ -38,6 +38,7 @@ from ..models.loan import Loan
 from ..models.loan_request import LoanRequest
 from ..models.user import User
 from ..models.enums import ConditionRating
+from ..models.contact import Contact
 
 DEFAULT_LOAN_PERIOD_DAYS = 14
 
@@ -58,11 +59,19 @@ class LoanRequestResult:
 class LoanResult:
     id: int
     book_id: int
-    borrower_id: int
+    borrower_id: int | None
+    contact_id: int | None
     loan_date: dt.date
     due_date: dt.date
     return_date: dt.date | None
     condition_rating: str | None
+
+    @property
+    def is_active(self) -> bool:
+        return self.return_date is None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
     @property
     def is_active(self) -> bool:
@@ -76,6 +85,7 @@ def _to_result(loan: Loan) -> LoanResult:
         id=loan.id,
         book_id=loan.book_id,
         borrower_id=loan.borrower_id,
+        contact_id=loan.contact_id,
         loan_date=loan.loan_date,
         due_date=loan.due_date,
         return_date=loan.return_date,
@@ -140,6 +150,65 @@ def create_loan(
         loan = Loan(
             book_id=book_id,
             borrower_id=borrower_id,
+            loan_date=resolved_loan_date,
+            due_date=due_date,
+            return_date=None,
+        )
+        session.add(loan)
+        session.flush()
+        return _to_result(loan)
+    
+def lend_to_contact(
+    book_id: int,
+    owner_id: int,
+    contact_id: int,
+    due_date: dt.date,
+    loan_date: dt.date | None = None,
+) -> LoanResult:
+    """Lend directly to a personal Contact — no request/approval
+    workflow, since a Contact has no account to approve anything with.
+    Owner-only, and the contact must belong to that same owner (a
+    Contact is private, per Domain Model "External Contacts").
+
+    Raises:
+        NotFoundError: if the book or contact does not exist.
+        NotAuthorizedError: if owner_id doesn't own the book, or
+            doesn't own the contact.
+        InvalidLoanDatesError: if due_date < loan_date.
+        BookAlreadyOnLoanError: if the book already has an active loan.
+    """
+    resolved_loan_date = loan_date or today()
+
+    if due_date < resolved_loan_date:
+        raise InvalidLoanDatesError(
+            f"due_date ({due_date}) may not precede loan_date ({resolved_loan_date})."
+        )
+
+    with get_session() as session:
+        book = session.get(Book, book_id)
+        if book is None:
+            raise NotFoundError(f"Book {book_id} does not exist.")
+        if book.owner_id != owner_id:
+            raise NotAuthorizedError(f"User {owner_id} does not own book {book_id}.")
+
+        contact = session.get(Contact, contact_id)
+        if contact is None:
+            raise NotFoundError(f"Contact {contact_id} does not exist.")
+        if contact.owner_id != owner_id:
+            raise NotAuthorizedError(f"Contact {contact_id} does not belong to user {owner_id}.")
+
+        active_loan = session.scalar(
+            select(Loan).where(Loan.book_id == book_id, Loan.return_date.is_(None))
+        )
+        if active_loan is not None:
+            raise BookAlreadyOnLoanError(
+                f"Book {book_id} already has an active loan (loan_id={active_loan.id})."
+            )
+
+        loan = Loan(
+            book_id=book_id,
+            borrower_id=None,
+            contact_id=contact_id,
             loan_date=resolved_loan_date,
             due_date=due_date,
             return_date=None,

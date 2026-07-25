@@ -156,6 +156,9 @@ class SummaryGenerationError(BusinessRuleViolation):
     exception (requests.RequestException), not wrapped here.
     """
 
+class InvalidContactDataError(BusinessRuleViolation):
+    """Raised when a contact's name is blank."""
+
 
 __all__ = [
     "DiodatiError",
@@ -184,4 +187,5 @@ __all__ = [
     "InvalidReviewDataError",
     "NotEligibleToReviewError",
     "SummaryGenerationError",
+    "InvalidContactDataError",
 ]

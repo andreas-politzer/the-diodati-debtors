@@ -67,31 +67,53 @@ def _reliability_points(loan: Loan) -> int:
     return _RELIABILITY_POINTS_OVER_7_DAYS
 
 
-def get_trust_signals(user_id: int) -> TrustSignals:
-    """Compute both signals for a user as a borrower. Cold-start cases
-    ("New Member", "Not Yet Rated") never imply poor behaviour.
+def _compute_signals(
+    completed_loans: list[Loan], cold_start_label: str = "New Member"
+) -> TrustSignals:
+    """Shared calculation core — used for both registered borrowers and
+    personal Contacts. Identical categories, identical thresholds, per
+    the "trust speaks one consistent language" principle (Domain Model,
+    "External Contacts") — only the cold-start label differs
+    (registered users vs. private contacts).
     """
+    if not completed_loans:
+        reliability = cold_start_label
+    else:
+        points = [_reliability_points(loan) for loan in completed_loans]
+        reliability = _category_for_score(sum(points) / len(points))
+
+    rated_loans = [loan for loan in completed_loans if loan.condition_rating is not None]
+    if not rated_loans:
+        book_care = "Not Yet Rated"
+    else:
+        points = [_BOOK_CARE_POINTS[loan.condition_rating] for loan in rated_loans]
+        book_care = _category_for_score(sum(points) / len(points))
+
+    return TrustSignals(reliability=reliability, book_care=book_care)
+
+
+def get_trust_signals(user_id: int) -> TrustSignals:
+    """Compute both signals for a registered user as a borrower."""
     with get_session() as session:
         completed_loans = session.scalars(
             select(Loan).where(
                 Loan.borrower_id == user_id, Loan.return_date.is_not(None)
             )
         ).all()
-
-        if not completed_loans:
-            reliability = "New Member"
-        else:
-            points = [_reliability_points(loan) for loan in completed_loans]
-            reliability = _category_for_score(sum(points) / len(points))
-
-        rated_loans = [loan for loan in completed_loans if loan.condition_rating is not None]
-        if not rated_loans:
-            book_care = "Not Yet Rated"
-        else:
-            points = [_BOOK_CARE_POINTS[loan.condition_rating] for loan in rated_loans]
-            book_care = _category_for_score(sum(points) / len(points))
-
-        return TrustSignals(reliability=reliability, book_care=book_care)
+        return _compute_signals(completed_loans, cold_start_label="New Member")
 
 
-__all__ = ["TrustSignals", "get_trust_signals"]
+def get_trust_signals_for_contact(contact_id: int) -> TrustSignals:
+    """Compute both signals for a personal Contact — same calculation
+    core, same categories, filtered by contact_id instead of
+    borrower_id.
+    """
+    with get_session() as session:
+        completed_loans = session.scalars(
+            select(Loan).where(
+                Loan.contact_id == contact_id, Loan.return_date.is_not(None)
+            )
+        ).all()
+        return _compute_signals(completed_loans, cold_start_label="New Contact")
+
+__all__ = ["TrustSignals", "get_trust_signals", "get_trust_signals_for_contact"]

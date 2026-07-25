@@ -16,7 +16,7 @@ import pytest
 
 from diodati_debtors.core.exceptions import (
     BookAlreadyOnLoanError,
-    LoanAlreadyReturnedError,
+    LoanAlreadyReturnedError,NotAuthorizedError 
 )
 from diodati_debtors.models.book import Book
 from diodati_debtors.models.user import User
@@ -171,6 +171,73 @@ def test_list_loans_for_owner_returns_only_that_owners_books_loans(db):
     results = loan_service.list_loans_for_owner(owner_id)
 
     assert [r.id for r in results] == [my_loan.id]
+
+def test_lend_to_contact_succeeds(db):
+    from diodati_debtors.services import contact_service
+
+    owner_id = _make_user(db, "owner_contact1@example.com")
+    book_id = _make_book(db, owner_id, "Contact Book")
+    contact = contact_service.create_contact(owner_id=owner_id, name="Grandma")
+
+    result = loan_service.lend_to_contact(
+        book_id=book_id, owner_id=owner_id, contact_id=contact.id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14), loan_date=REFERENCE_DATE,
+    )
+
+    assert result.contact_id == contact.id
+    assert result.borrower_id is None
+
+
+def test_lend_to_contact_rejects_non_owner_of_book(db):
+    from diodati_debtors.services import contact_service
+
+    owner_id = _make_user(db, "owner_contact2@example.com")
+    outsider_id = _make_user(db, "outsider_contact1@example.com")
+    book_id = _make_book(db, owner_id, "Protected Book")
+    contact = contact_service.create_contact(owner_id=owner_id, name="Grandma")
+
+    with pytest.raises(NotAuthorizedError):
+        loan_service.lend_to_contact(
+            book_id=book_id, owner_id=outsider_id, contact_id=contact.id,
+            due_date=REFERENCE_DATE + dt.timedelta(days=14),
+            loan_date=REFERENCE_DATE,
+        )
+
+
+def test_lend_to_contact_rejects_contact_belonging_to_someone_else(db):
+    from diodati_debtors.services import contact_service
+
+    owner_id = _make_user(db, "owner_contact3@example.com")
+    other_owner_id = _make_user(db, "owner_contact4@example.com")
+    book_id = _make_book(db, owner_id, "Some Book")
+    someone_elses_contact = contact_service.create_contact(owner_id=other_owner_id, name="Not Yours")
+
+    with pytest.raises(NotAuthorizedError):
+        loan_service.lend_to_contact(
+            book_id=book_id, owner_id=owner_id, contact_id=someone_elses_contact.id,
+            due_date=REFERENCE_DATE + dt.timedelta(days=14),
+            loan_date=REFERENCE_DATE,
+        )
+
+
+def test_lend_to_contact_rejects_book_already_on_loan(db):
+    from diodati_debtors.services import contact_service
+
+    owner_id = _make_user(db, "owner_contact5@example.com")
+    borrower_id = _make_user(db, "borrower_contact1@example.com")
+    book_id = _make_book(db, owner_id, "Busy Book")
+    contact = contact_service.create_contact(owner_id=owner_id, name="Grandma")
+    loan_service.create_loan(
+        book_id=book_id, borrower_id=borrower_id,
+        due_date=REFERENCE_DATE + dt.timedelta(days=14), loan_date=REFERENCE_DATE,
+    )
+
+    with pytest.raises(BookAlreadyOnLoanError):
+        loan_service.lend_to_contact(
+            book_id=book_id, owner_id=owner_id, contact_id=contact.id,
+            due_date=REFERENCE_DATE + dt.timedelta(days=14),
+            loan_date=REFERENCE_DATE,
+        )
 
 
 def test_loan_service_has_no_reflex_dependency():

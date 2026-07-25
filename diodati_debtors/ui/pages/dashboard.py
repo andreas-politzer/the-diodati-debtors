@@ -112,7 +112,7 @@ def dashboard() -> rx.Component:
         meta_text(f"Logged in as {AuthState.current_user_display_name}"),
         rx.link("☞ Add a book", href="/add-book", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Clubs", href="/clubs", margin_bottom="0.5rem", display="block"),
-        rx.link("☞ Members", href="/members", margin_bottom="0.5rem", display="block"),
+        rx.link("☞ Bookmates", href="/members", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Organize", href="/organize", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Communication", href="/communication", margin_bottom="0.5rem", display="block"),
         rx.link(

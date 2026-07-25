@@ -1,6 +1,8 @@
-"""Book action bar — lending/borrowing actions only. Edit/Delete now
-live on the Book Detail / Edit pages instead (Andy's request: keep
-the list view lean as it grows more crowded)."""
+"""Book action bar — lending/borrowing actions. Edit/Delete live on
+Book Detail / Edit pages. "Lend to a contact" is a slim link here too
+(only for own, available books) — the actual workflow lives on its own
+page (/lend-to-contact).
+"""
 
 from __future__ import annotations
 
@@ -28,7 +30,11 @@ def book_action_bar(book: BookView) -> rx.Component:
                 ),
                 spacing="2",
             ),
-            meta_text("Your book"),
+            rx.vstack(
+                meta_text("Your book"),
+                rx.link("☞ Lend to a contact", href="/lend-to-contact"),
+                spacing="1",
+            ),
         ),
         rx.cond(
             book.is_on_loan,
@@ -43,3 +49,6 @@ def book_action_bar(book: BookView) -> rx.Component:
             ),
         ),
     )
+
+
+__all__ = ["book_action_bar"]

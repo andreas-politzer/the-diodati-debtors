@@ -168,3 +168,8 @@ app.add_page(
     route="/lend-to-contact",
     on_load=[AuthState.check_auth, ContactState.load_contacts, LibraryState.load_lendable_book_options],
 )
+app.add_page(
+    members,
+    route="/members",
+    on_load=[AuthState.check_auth, GroupState.load_my_groups, GroupState.load_members_overview, ContactState.load_contacts],
+)

@@ -336,10 +336,16 @@ class LibraryState(rx.State):
 
         history: list[LoanHistoryEntry] = []
         for loan in loans:
-            try:
-                borrower_name = user_service.get_user(loan.borrower_id).display_name
-            except DiodatiError:
-                borrower_name = f"User {loan.borrower_id}"
+            if loan.contact_id is not None:
+                try:
+                    borrower_name = f"{contact_service.get_contact(loan.contact_id).name} (contact)"
+                except DiodatiError:
+                    borrower_name = "Unknown contact"
+            else:
+                try:
+                    borrower_name = user_service.get_user(loan.borrower_id).display_name
+                except DiodatiError:
+                    borrower_name = "Unknown"
             history.append(
                 LoanHistoryEntry(
                     id=loan.id,

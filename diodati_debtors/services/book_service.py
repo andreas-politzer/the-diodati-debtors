@@ -16,7 +16,7 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import asdict, dataclass
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from ..core.exceptions import (
     BookHasLoanHistoryError,
@@ -441,23 +441,53 @@ def list_books() -> list[BookResult]:
         return [_to_result(book) for book in books]
 
 
-def list_books_for_owner(owner_id: int) -> list[BookResult]:
+def list_books_for_owner(
+    owner_id: int, search: str | None = None, genre: str | None = None
+) -> list[BookResult]:
+    """A single user's own catalogue — "My Personal Library".
+
+    search matches title, author, isbn, or location (case-insensitive,
+    substring match) — one universal field instead of separate inputs
+    per data type, per Andy's request.
+    """
     with get_session() as session:
-        books = session.scalars(
-            select(Book).where(Book.owner_id == owner_id).order_by(Book.created_at)
-        ).all()
+        query = select(Book).where(Book.owner_id == owner_id)
+        query = _apply_search_and_genre(query, search, genre)
+        books = session.scalars(query.order_by(Book.created_at)).all()
         return [_to_result(book) for book in books]
 
 
-def list_books_for_group(group_id: int) -> list[BookResult]:
+def list_books_for_group(
+    group_id: int, search: str | None = None, genre: str | None = None
+) -> list[BookResult]:
+    """Every book owned by any member of the given group —
+    "Common/Club Library".
+    """
     with get_session() as session:
-        books = session.scalars(
+        query = (
             select(Book)
             .join(GroupMembership, GroupMembership.user_id == Book.owner_id)
             .where(GroupMembership.group_id == group_id)
-            .order_by(Book.created_at)
-        ).all()
+        )
+        query = _apply_search_and_genre(query, search, genre)
+        books = session.scalars(query.order_by(Book.created_at)).all()
         return [_to_result(book) for book in books]
+
+
+def _apply_search_and_genre(query, search: str | None, genre: str | None):
+    if search:
+        pattern = f"%{search}%"
+        query = query.where(
+            or_(
+                Book.title.ilike(pattern),
+                Book.author.ilike(pattern),
+                Book.isbn.ilike(pattern),
+                Book.location.ilike(pattern),
+            )
+        )
+    if genre:
+        query = query.where(Book.genre == BookGenre(genre))
+    return query
 
 
 __all__ = [

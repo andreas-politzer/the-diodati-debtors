@@ -428,6 +428,45 @@ def test_clear_summary_rejects_non_owner(db):
     with pytest.raises(NotAuthorizedError):
         book_service.clear_summary(book.id, owner_id=outsider_id)
 
+def test_list_books_for_owner_search_matches_title(db):
+    owner_id = _make_user(db, "owner_search1@example.com")
+    book_service.create_book(owner_id=owner_id, title="Frankenstein", author="Mary Shelley")
+    book_service.create_book(owner_id=owner_id, title="Dracula", author="Bram Stoker")
+
+    results = book_service.list_books_for_owner(owner_id, search="frank")
+
+    assert [b.title for b in results] == ["Frankenstein"]
+
+
+def test_list_books_for_owner_search_matches_author(db):
+    owner_id = _make_user(db, "owner_search2@example.com")
+    book_service.create_book(owner_id=owner_id, title="Frankenstein", author="Mary Shelley")
+    book_service.create_book(owner_id=owner_id, title="Dracula", author="Bram Stoker")
+
+    results = book_service.list_books_for_owner(owner_id, search="stoker")
+
+    assert [b.title for b in results] == ["Dracula"]
+
+
+def test_list_books_for_owner_genre_filter(db):
+    owner_id = _make_user(db, "owner_search3@example.com")
+    book_service.create_book(owner_id=owner_id, title="Frankenstein", genre="horror")
+    book_service.create_book(owner_id=owner_id, title="The Name of the Rose", genre="crime")
+
+    results = book_service.list_books_for_owner(owner_id, genre="crime")
+
+    assert [b.title for b in results] == ["The Name of the Rose"]
+
+
+def test_list_books_for_owner_search_and_genre_combined(db):
+    owner_id = _make_user(db, "owner_search4@example.com")
+    book_service.create_book(owner_id=owner_id, title="Dracula", author="Bram Stoker", genre="horror")
+    book_service.create_book(owner_id=owner_id, title="Draculas Guest", author="Someone Else", genre="crime")
+
+    results = book_service.list_books_for_owner(owner_id, search="dracula", genre="horror")
+
+    assert [b.title for b in results] == ["Dracula"]
+
 
 def test_book_service_has_no_reflex_dependency():
     """Static source check, per the Architecture Contract."""

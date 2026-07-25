@@ -54,6 +54,7 @@ class OrganizeState(rx.State):
     info_message: str = ""
     pending_response_request_id: int = 0
     response_message_draft: str = ""
+    pending_count: int = 0
 
     async def load_all(self):
         self.error_message = ""
@@ -182,6 +183,23 @@ class OrganizeState(rx.State):
 
     def set_response_message_draft(self, value: str):
         self.response_message_draft = value
+
+    async def load_pending_count(self):
+        """Lightweight — just the count, no name/trust enrichment.
+        Used by the Dashboard nav badge, separate from load_all()
+        (which does the full Organize page's enrichment)."""
+        auth_state = await self.get_state(AuthState)
+        if not auth_state.is_logged_in:
+            self.pending_count = 0
+            return
+        user_id = int(auth_state.current_user_id)
+        try:
+            join_count = len(group_service.list_pending_join_requests_for_founder(user_id))
+            loan_count = len(loan_service.list_pending_loan_requests_for_owner(user_id))
+        except DiodatiError:
+            self.pending_count = 0
+            return
+        self.pending_count = join_count + loan_count
 
     async def load_sent_requests(self):
         auth_state = await self.get_state(AuthState)

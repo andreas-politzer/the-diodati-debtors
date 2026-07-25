@@ -97,7 +97,7 @@ app.add_page(
 app.add_page(
     dashboard,
     route="/dashboard",
-    on_load=[AuthState.check_auth, GroupState.load_my_groups, LibraryState.load_all],
+    on_load=[AuthState.check_auth, GroupState.load_my_groups, LibraryState.load_all, OrganizeState.load_pending_count],
 )
 app.add_page(
     global_board,

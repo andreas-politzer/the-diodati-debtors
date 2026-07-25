@@ -18,6 +18,7 @@ from ..tokens import Border, Color, Font, Radius, Space, Type
 from ...state.auth_state import AuthState
 from ...state.group_state import GroupState
 from ...state.library_state import BorrowedLoanView, LibraryState
+from ...state.organize_state import OrganizeState
 
 
 def _tab_button(label: str, tab_key: str) -> rx.Component:
@@ -113,7 +114,19 @@ def dashboard() -> rx.Component:
         rx.link("☞ Add a book", href="/add-book", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Clubs", href="/clubs", margin_bottom="0.5rem", display="block"),
         rx.link("☞ Bookmates", href="/members", margin_bottom="0.5rem", display="block"),
-        rx.link("☞ Organize", href="/organize", margin_bottom="0.5rem", display="block"),
+        rx.link(
+            rx.hstack(
+                rx.text("☞ Organize"),
+                rx.cond(
+                    OrganizeState.pending_count > 0,
+                    rx.text(f"({OrganizeState.pending_count})", color=Color.accent, font_weight="700"),
+                ),
+                spacing="1",
+            ),
+            href="/organize",
+            margin_bottom="0.5rem",
+            display="block",
+        ),
         rx.link("☞ Communication", href="/communication", margin_bottom="0.5rem", display="block"),
         
         rx.cond(

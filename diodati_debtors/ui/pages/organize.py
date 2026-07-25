@@ -1,7 +1,8 @@
-"""Organize page — central inbox for pending decisions: join requests
-for clubs I founded, loan requests for books I own. One shared card
-layout for both request types per the design notes (project vault) —
-intentionally generic, not "club management" / "book management".
+"""Organize page — "What needs my attention?" Two sections: incoming
+requests needing a decision, and requests I've sent myself, with the
+owner's response visible once decided. Approve/Decline now open a
+small dialog for an optional response message (Domain principle: this
+is part of the request lifecycle, not a messaging system).
 """
 
 from __future__ import annotations
@@ -13,31 +14,50 @@ from ..components.card import card
 from ..components.label import body_text, meta_text, page_title
 from ..components.shell import divider, shell
 from ..tokens import Color, Font, Type
-from ...state.organize_state import JoinRequestView, LoanRequestView, OrganizeState
+from ...state.organize_state import (
+    JoinRequestView,
+    LoanRequestView,
+    OrganizeState,
+    SentLoanRequestView,
+)
 
 
-def _request_card(title_text: str, subtitle: str, requested_at: str, on_approve, on_decline) -> rx.Component:
-    return card(
-        body_text(title_text),
-        meta_text(subtitle),
-        meta_text(f"Requested {requested_at}"),
-        rx.hstack(
-            primary_button("Approve", on_click=on_approve),
-            warning_button("Decline", on_click=on_decline),
-            spacing="3",
-            margin_top="0.5rem",
+def _response_dialog(request_id: int, action_label: str, on_confirm) -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.trigger(
+            primary_button(action_label, on_click=lambda: OrganizeState.open_response_dialog(request_id))
         ),
-        margin_bottom="1rem",
+        rx.dialog.content(
+            rx.dialog.title(f"{action_label}?"),
+            rx.vstack(
+                rx.input(
+                    placeholder="Optional message (e.g. 'Come pick it up after 5pm')",
+                    value=OrganizeState.response_message_draft,
+                    on_change=OrganizeState.set_response_message_draft,
+                ),
+                rx.hstack(
+                    rx.dialog.close(primary_button("Confirm", on_click=on_confirm)),
+                    rx.dialog.close(primary_button("Cancel", type="button")),
+                    spacing="2",
+                ),
+                spacing="3",
+            ),
+        ),
     )
 
 
 def _join_request_card(request: JoinRequestView) -> rx.Component:
-    return _request_card(
-        title_text=f"{request.requester_name} wants to join",
-        subtitle=request.group_name,
-        requested_at=request.requested_at,
-        on_approve=lambda: OrganizeState.approve_join(request.id),
-        on_decline=lambda: OrganizeState.decline_join(request.id),
+    return card(
+        body_text(f"{request.requester_name} wants to join"),
+        meta_text(request.group_name),
+        meta_text(f"Requested {request.requested_at}"),
+        rx.hstack(
+            primary_button("Approve", on_click=lambda: OrganizeState.approve_join(request.id)),
+            warning_button("Decline", on_click=lambda: OrganizeState.decline_join(request.id)),
+            spacing="3",
+            margin_top="0.5rem",
+        ),
+        margin_bottom="1rem",
     )
 
 
@@ -51,11 +71,21 @@ def _loan_request_card(request: LoanRequestView) -> rx.Component:
         rx.cond(request.requested_due_date, meta_text(f"Requested until: {request.requested_due_date}")),
         rx.cond(request.note, meta_text(f"Note: {request.note}")),
         rx.hstack(
-            primary_button("Approve", on_click=lambda: OrganizeState.approve_loan(request.id)),
-            warning_button("Decline", on_click=lambda: OrganizeState.decline_loan(request.id)),
+            _response_dialog(request.id, "Approve", lambda: OrganizeState.approve_loan(request.id)),
+            _response_dialog(request.id, "Decline", lambda: OrganizeState.decline_loan(request.id)),
             spacing="3",
             margin_top="0.5rem",
         ),
+        margin_bottom="1rem",
+    )
+
+
+def _sent_request_card(request: SentLoanRequestView) -> rx.Component:
+    return card(
+        body_text(request.book_title),
+        meta_text(f"Status: {request.status}"),
+        meta_text(f"Requested {request.requested_at}"),
+        rx.cond(request.response_message, meta_text(f"Owner's reply: {request.response_message}")),
         margin_bottom="1rem",
     )
 
@@ -77,15 +107,11 @@ def organize() -> rx.Component:
             meta_text(OrganizeState.info_message),
         ),
         divider(),
+        page_title("Needs Your Action"),
         rx.hstack(
             page_title("Pending Join Requests"),
-            rx.text(
-                OrganizeState.join_requests.length(),
-                font_family=Font.system,
-                font_size=Type.meta,
-            ),
-            spacing="2",
-            align="center",
+            rx.text(OrganizeState.join_requests.length(), font_family=Font.system, font_size=Type.meta),
+            spacing="2", align="center",
         ),
         rx.cond(
             OrganizeState.join_requests.length() > 0,
@@ -95,18 +121,20 @@ def organize() -> rx.Component:
         divider(),
         rx.hstack(
             page_title("Pending Loan Requests"),
-            rx.text(
-                OrganizeState.loan_requests.length(),
-                font_family=Font.system,
-                font_size=Type.meta,
-            ),
-            spacing="2",
-            align="center",
+            rx.text(OrganizeState.loan_requests.length(), font_family=Font.system, font_size=Type.meta),
+            spacing="2", align="center",
         ),
         rx.cond(
             OrganizeState.loan_requests.length() > 0,
             rx.foreach(OrganizeState.loan_requests, _loan_request_card),
             body_text("No pending loan requests."),
+        ),
+        divider(),
+        page_title("Your Requests"),
+        rx.cond(
+            OrganizeState.sent_requests.length() > 0,
+            rx.foreach(OrganizeState.sent_requests, _sent_request_card),
+            body_text("You haven't sent any requests."),
         ),
         rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
         max_width="40rem",

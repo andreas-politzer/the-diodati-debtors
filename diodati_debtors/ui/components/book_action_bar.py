@@ -1,8 +1,8 @@
 """Book action bar — lending/borrowing actions. Edit/Delete live on
 Book Detail / Edit pages. "Lend to a contact" is a slim link here too
-(only for own, available books). Requesting to borrow now opens a
-dialog (rx.dialog) instead of an instant click — lets the requester
-pick a custom loan period and leave an optional note.
+(only for own, available books). Both "Request to borrow" and "Mark
+returned" open a small dialog instead of being instant/always-visible
+— keeps the card itself lean.
 """
 
 from __future__ import annotations
@@ -58,23 +58,37 @@ def _request_dialog(book: BookView) -> rx.Component:
     )
 
 
-def book_action_bar(book: BookView) -> rx.Component:
-    return rx.cond(
-        book.is_own_book,
-        rx.cond(
-            book.is_on_loan,
+def _return_dialog(book: BookView) -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.trigger(primary_button("Mark returned")),
+        rx.dialog.content(
+            rx.dialog.title("Mark as returned"),
             rx.vstack(
+                rx.text("How was the book's condition?"),
                 rx.select(
                     ["Skip rating", "Better than before", "Same condition", "Slightly worse", "Significantly worse"],
                     default_value="Skip rating",
                     on_change=LibraryState.set_return_condition_rating,
                 ),
-                primary_button(
-                    "Mark returned",
-                    on_click=lambda: LibraryState.return_book(book),
+                rx.hstack(
+                    rx.dialog.close(
+                        primary_button("Confirm return", on_click=lambda: LibraryState.return_book(book))
+                    ),
+                    rx.dialog.close(primary_button("Cancel", type="button")),
+                    spacing="2",
                 ),
-                spacing="2",
+                spacing="3",
             ),
+        ),
+    )
+
+
+def book_action_bar(book: BookView) -> rx.Component:
+    return rx.cond(
+        book.is_own_book,
+        rx.cond(
+            book.is_on_loan,
+            _return_dialog(book),
             rx.vstack(
                 meta_text("Your book"),
                 rx.link("☞ Lend to a contact", href="/lend-to-contact"),

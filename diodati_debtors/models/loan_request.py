@@ -41,6 +41,7 @@ class LoanRequest(Base):
     requested_due_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True
     )
+    response_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewed_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
     reviewed_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True

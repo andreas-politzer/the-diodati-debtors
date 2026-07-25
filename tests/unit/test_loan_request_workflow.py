@@ -198,3 +198,45 @@ def test_approve_loan_request_uses_requested_due_date_when_provided(db):
         from diodati_debtors.models.loan import Loan
         loan = session.query(Loan).filter_by(book_id=book_id).one()
         assert loan.due_date == custom_due_date
+
+def test_approve_loan_request_with_response_message(db):
+    owner_id = _make_user(db, "owner_response1@example.com")
+    requester_id = _make_user(db, "requester_response1@example.com")
+    book_id = _make_book(db, owner_id, "Friendly Book")
+    request = loan_service.request_to_borrow(book_id=book_id, requester_id=requester_id)
+
+    result = loan_service.approve_loan_request(
+        request.id, reviewer_id=owner_id,
+        response_message="Sure, come pick it up after 5pm.",
+    )
+
+    assert result.response_message == "Sure, come pick it up after 5pm."
+
+
+def test_decline_loan_request_with_response_message(db):
+    owner_id = _make_user(db, "owner_response2@example.com")
+    requester_id = _make_user(db, "requester_response2@example.com")
+    book_id = _make_book(db, owner_id, "Keep it Book")
+    request = loan_service.request_to_borrow(book_id=book_id, requester_id=requester_id)
+
+    result = loan_service.decline_loan_request(
+        request.id, reviewer_id=owner_id,
+        response_message="Sorry, wanted to take it on vacation myself.",
+    )
+
+    assert result.response_message == "Sorry, wanted to take it on vacation myself."
+
+
+def test_list_loan_requests_for_requester_returns_all_statuses(db):
+    owner_id = _make_user(db, "owner_response3@example.com")
+    requester_id = _make_user(db, "requester_response3@example.com")
+    book_a = _make_book(db, owner_id, "Book A")
+    book_b = _make_book(db, owner_id, "Book B")
+
+    request_a = loan_service.request_to_borrow(book_id=book_a, requester_id=requester_id)
+    request_b = loan_service.request_to_borrow(book_id=book_b, requester_id=requester_id)
+    loan_service.decline_loan_request(request_b.id, reviewer_id=owner_id)
+
+    results = loan_service.list_loan_requests_for_requester(requester_id)
+
+    assert {r.id for r in results} == {request_a.id, request_b.id}

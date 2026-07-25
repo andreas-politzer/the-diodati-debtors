@@ -119,11 +119,6 @@ app.add_page(
     on_load=[AuthState.check_auth, OrganizeState.load_all],
 )
 app.add_page(
-    members,
-    route="/members",
-    on_load=[AuthState.check_auth, GroupState.load_my_groups, GroupState.load_members_overview],
-)
-app.add_page(
     member_detail,
     route="/members/[member_id]",
     on_load=[AuthState.check_auth, LibraryState.load_member_library],

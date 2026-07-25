@@ -54,6 +54,7 @@ class LoanRequestResult:
     reviewed_by: int | None
     requested_due_date: dt.date | None
     note: str | None
+    response_message: str | None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -107,6 +108,7 @@ def _to_request_result(request: LoanRequest) -> LoanRequestResult:
         reviewed_by=request.reviewed_by,
         requested_due_date=request.requested_due_date,
         note=request.note,
+        response_message=request.response_message,
     )
 
 
@@ -367,6 +369,19 @@ def list_pending_loan_requests_for_book(book_id: int) -> list[LoanRequestResult]
             .order_by(LoanRequest.requested_at)
         ).all()
         return [_to_request_result(r) for r in requests]
+    
+def list_loan_requests_for_requester(requester_id: int) -> list[LoanRequestResult]:
+    """All loan requests this user has sent, any status — feeds "My
+    Requests" in Organize (the sent-perspective, mirroring Organize's
+    received-perspective).
+    """
+    with get_session() as session:
+        requests = session.scalars(
+            select(LoanRequest)
+            .where(LoanRequest.requester_id == requester_id)
+            .order_by(LoanRequest.requested_at.desc())
+        ).all()
+        return [_to_request_result(r) for r in requests]
 
 
 def get_pending_request_book_ids_for_requester(
@@ -402,6 +417,7 @@ def approve_loan_request(
     request_id: int,
     reviewer_id: int,
     due_in_days: int = DEFAULT_LOAN_PERIOD_DAYS,
+    response_message: str | None = None,
 ) -> LoanRequestResult:
     """Approve a pending loan request, creating the resulting Loan.
 
@@ -440,6 +456,7 @@ def approve_loan_request(
         request.status = RequestStatus.APPROVED
         request.reviewed_at = utcnow()
         request.reviewed_by = reviewer_id
+        request.response_message = blank_to_none(response_message)
 
         resolved_due_date = request.requested_due_date or (
             today() + dt.timedelta(days=due_in_days)
@@ -465,7 +482,9 @@ def approve_loan_request(
         return _to_request_result(request)
 
 
-def decline_loan_request(request_id: int, reviewer_id: int) -> LoanRequestResult:
+def decline_loan_request(
+    request_id: int, reviewer_id: int, response_message: str | None = None
+) -> LoanRequestResult:
     """Decline a pending loan request. No Loan is created.
 
     Raises:
@@ -488,6 +507,7 @@ def decline_loan_request(request_id: int, reviewer_id: int) -> LoanRequestResult
         request.status = RequestStatus.DECLINED
         request.reviewed_at = utcnow()
         request.reviewed_by = reviewer_id
+        request.response_message = blank_to_none(response_message)
         session.flush()
         return _to_request_result(request)
     
@@ -550,5 +570,6 @@ __all__ = [
     "decline_loan_request",
     "list_pending_loan_requests_for_owner",
     "list_loans_for_borrower",
-    "list_loans_for_owner"
+    "list_loans_for_owner",
+    "list_loan_requests_for_requester",
 ]

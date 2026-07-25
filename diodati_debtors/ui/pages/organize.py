@@ -48,6 +48,8 @@ def _loan_request_card(request: LoanRequestView) -> rx.Component:
         meta_text(f"Requested {request.requested_at}"),
         meta_text(f"Reliability: {request.reliability}"),
         meta_text(f"Book Care: {request.book_care}"),
+        rx.cond(request.requested_due_date, meta_text(f"Requested until: {request.requested_due_date}")),
+        rx.cond(request.note, meta_text(f"Note: {request.note}")),
         rx.hstack(
             primary_button("Approve", on_click=lambda: OrganizeState.approve_loan(request.id)),
             warning_button("Decline", on_click=lambda: OrganizeState.decline_loan(request.id)),

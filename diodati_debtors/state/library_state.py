@@ -148,6 +148,10 @@ class LibraryState(rx.State):
     return_condition_rating: str = ""
     viewing_member_reliability: str = ""
     viewing_member_book_care: str = ""
+    request_book_id: int = 0
+    request_period_choice: str = "Standard (14 days)"
+    request_custom_due_date: str = ""
+    request_note: str = ""
     search_results: list[BookSearchResultView] = []
     borrowed_loans: list[BorrowedLoanView] = []
     lent_out_loans: list[LentOutLoanView] = []
@@ -701,22 +705,49 @@ class LibraryState(rx.State):
         self.search_query = ""
         self.search_results = []
 
-    async def request_to_borrow(self, book_id: int):
+    async def request_to_borrow(self):
         self.error_message = ""
         self.info_message = ""
         auth_state = await self.get_state(AuthState)
         if not auth_state.is_logged_in:
             self.error_message = "You must be logged in to request a book."
             return
+
+        requested_due_date = None
+        if self.request_period_choice == "Custom" and self.request_custom_due_date:
+            try:
+                requested_due_date = dt.date.fromisoformat(self.request_custom_due_date)
+            except ValueError:
+                self.error_message = "Invalid date."
+                return
+
         try:
             loan_service.request_to_borrow(
-                book_id=int(book_id), requester_id=int(auth_state.current_user_id)
+                book_id=int(self.request_book_id),
+                requester_id=int(auth_state.current_user_id),
+                requested_due_date=requested_due_date,
+                note=self.request_note or None,
             )
         except DiodatiError as e:
             self.error_message = str(e)
         else:
             self.info_message = "Request sent — waiting for the owner's approval."
             await self.load_books()
+
+    def open_request_dialog(self, book_id: int):
+        self.request_book_id = book_id
+        self.request_period_choice = "Standard (14 days)"
+        self.request_custom_due_date = ""
+        self.request_note = ""
+
+    def set_request_period_choice(self, value: str):
+        self.request_period_choice = value
+
+    def set_request_custom_due_date(self, value: str):
+        self.request_custom_due_date = value
+
+    def set_request_note(self, value: str):
+        self.request_note = value
 
     async def return_book(self, book: BookView):
         self.error_message = ""

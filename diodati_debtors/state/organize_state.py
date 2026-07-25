@@ -36,6 +36,17 @@ class LoanRequestView:
     reliability: str = ""
     book_care: str = ""
 
+@dataclass
+class LoanRequestView:
+    id: int
+    requester_name: str
+    book_title: str
+    requested_at: str
+    reliability: str = ""
+    book_care: str = ""
+    requested_due_date: str | None = None
+    note: str | None = None
+
 
 class OrganizeState(rx.State):
     join_requests: list[JoinRequestView] = []
@@ -94,6 +105,8 @@ class OrganizeState(rx.State):
                     requested_at=r.requested_at.isoformat(),
                     reliability=signals.reliability,
                     book_care=signals.book_care,
+                    requested_due_date=r.requested_due_date.isoformat() if r.requested_due_date else None,
+                    note=r.note,
                 )
             )
         self.loan_requests = loan_views

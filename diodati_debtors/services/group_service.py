@@ -356,6 +356,30 @@ def list_members(group_id: int) -> list[MemberResult]:
             for m in memberships
         ]
     
+def get_visible_owner_ids(user_id: int) -> set[int]:
+    """User IDs whose books this user may see: themselves plus every
+    fellow member of any club they belong to. Single source of truth
+    for book-visibility rules — shared by any service that needs to
+    know "which books can this user see" in bulk (e.g.
+    librarian_service for semantic search).
+    """
+    with get_session() as session:
+        group_ids = {
+            m.group_id
+            for m in session.scalars(
+                select(GroupMembership).where(GroupMembership.user_id == user_id)
+            ).all()
+        }
+        owner_ids = {user_id}
+        if group_ids:
+            owner_ids |= {
+                m.user_id
+                for m in session.scalars(
+                    select(GroupMembership).where(GroupMembership.group_id.in_(group_ids))
+                ).all()
+            }
+        return owner_ids
+    
 def update_group_description(group_id: int, founder_id: int, description: str | None) -> GroupResult:
     """Update a club's description. Only the group's founder may edit
     it — checked explicitly here, same pattern as
@@ -393,4 +417,5 @@ __all__ = [
     "MemberResult",
     "list_members",
     "update_group_description",
+    "get_visible_owner_ids",
 ]

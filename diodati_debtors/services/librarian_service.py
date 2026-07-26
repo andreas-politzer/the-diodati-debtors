@@ -57,25 +57,34 @@ class RestrictedHint:
 class LibrarianResult:
     matches: list[LibrarianMatch]
     restricted_hint: RestrictedHint | None
-    no_match_at_all: bool
 
     def to_dict(self) -> dict:
         return {
             "matches": [m.to_dict() for m in self.matches],
             "restricted_hint": self.restricted_hint.to_dict() if self.restricted_hint else None,
-            "no_match_at_all": self.no_match_at_all,
         }
 
 @dataclass(frozen=True)
 class ExternalRecommendation:
-    """A book Gemini suggests that isn't in the club's own library at
-    all — enriched with real cover/metadata via our existing Open
-    Library title search, when available."""
+    """Up to three books Gemini suggests that aren't in the library at
+    all, with real cover/metadata enrichment via Open Library where
+    possible, plus a single, shared remark in Lord Byron's voice
+    covering all of them together — more natural than a mechanical
+    one-liner per book."""
 
+    books: list[ExternalBook]
+    remark: str
+
+    def to_dict(self) -> dict:
+        return {"books": [b.to_dict() for b in self.books], "remark": self.remark}
+    
+@dataclass(frozen=True)
+class ExternalBook:
     title: str
     author: str | None
     cover_url: str | None
     isbn: str | None
+    work_key: str | None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -100,6 +109,18 @@ def _restricted_hint_for(session, book: Book, requester_id: int, requester_group
             return RestrictedHint(club_name=membership.group.name)
     return None
 
+def _direct_title_matches(session, query: str, visible_owner_ids: set[int]) -> list[Book]:
+    """Exact (case-insensitive) title containment — catches direct
+    "do you have X?" questions that pure semantic similarity can
+    under-score, since embeddings are built from a book's synopsis
+    text, not from its title. No typo tolerance — that would need
+    fuzzy matching, a separate, bigger addition."""
+    query_lower = query.lower()
+    visible_books = session.scalars(
+        select(Book).where(Book.owner_id.in_(visible_owner_ids))
+    ).all()
+    return [b for b in visible_books if b.title and b.title.lower() in query_lower]
+
 
 def ask_librarian(query: str, requester_id: int) -> LibrarianResult:
     """The core "Ask the Librarian" search. Never raises for a "no
@@ -110,6 +131,14 @@ def ask_librarian(query: str, requester_id: int) -> LibrarianResult:
     visible_owner_ids = get_visible_owner_ids(requester_id)
 
     with get_session() as session:
+        direct_matches = _direct_title_matches(session, query, visible_owner_ids)
+        if direct_matches:
+            matches = [
+                LibrarianMatch(book_id=b.id, title=b.title, author=b.author, similarity=1.0)
+                for b in direct_matches[:5]
+            ]
+            return LibrarianResult(matches=matches, restricted_hint=None)
+
         all_embedded_books = session.scalars(
             select(Book).where(Book.embedding.is_not(None))
         ).all()
@@ -130,12 +159,13 @@ def ask_librarian(query: str, requester_id: int) -> LibrarianResult:
                 LibrarianMatch(book_id=b.id, title=b.title, author=b.author, similarity=score)
                 for score, b in visible_good_matches[:5]
             ]
-            return LibrarianResult(matches=matches, restricted_hint=None, no_match_at_all=False)
+            return LibrarianResult(matches=matches, restricted_hint=None)
 
         hidden_good_matches = [
             (score, book) for score, book in scored
             if score >= MATCH_THRESHOLD and book.owner_id not in visible_owner_ids
         ]
+        hint = None
         if hidden_good_matches:
             requester_group_ids = {
                 m.group_id
@@ -143,62 +173,120 @@ def ask_librarian(query: str, requester_id: int) -> LibrarianResult:
                     select(GroupMembership).where(GroupMembership.user_id == requester_id)
                 ).all()
             }
-            best_score, best_book = hidden_good_matches[0]
+            _, best_book = hidden_good_matches[0]
             hint = _restricted_hint_for(session, best_book, requester_id, requester_group_ids)
-            return LibrarianResult(matches=[], restricted_hint=hint, no_match_at_all=False)
 
-        return LibrarianResult(matches=[], restricted_hint=None, no_match_at_all=True)
-
-def get_external_recommendation(query: str) -> ExternalRecommendation | None:
-    """Only called when ask_librarian() returns no_match_at_all=True.
-    Asks Gemini for a real, existing book matching the query's mood/
-    theme, then looks it up via Open Library's title search for real
-    cover art. Returns None if Gemini's suggestion can't be parsed or
-    found — the caller shows a graceful "even the librarian couldn't
-    find anything" message in that case, never an error.
+        return LibrarianResult(matches=[], restricted_hint=hint)
+    
+def get_match_remark(query: str, matches: list[LibrarianMatch]) -> str:
+    """A short remark in Lord Byron's voice about matches found in the
+    user's own visible library — the same personality as the external
+    fallback, so the librarian is never a silent, personality-free
+    card when he *does* find something at home.
     """
+    titles_list = ", ".join(m.title for m in matches)
     prompt = (
-        f"Someone is looking for a book matching this description: "
-        f'"{query}". Suggest exactly one real, existing book that '
-        f"matches. Reply in exactly this format, nothing else: "
-        f"Title | Author"
+        f"You are Lord Byron, speaking as a witty, slightly arrogant but "
+        f'charming 19th-century English gentleman librarian. Someone asked '
+        f'for a book matching: "{query}". You found these book(s) already '
+        f"within the community's own collection — The Diodati Debtors "
+        f"themselves have it. Write ONE short remark (2-4 sentences "
+        f"total), in character, dandyish and a touch superior but "
+        f"ultimately warm and enthusiastic, addressing the person "
+        f"informally in period style. Express a sense of triumphant "
+        f"discovery that the book is right here, within the community's "
+        f"own holdings — you may playfully reference \"the Diodati "
+        f"debtors\" themselves as having it.\n\n"
+        f"IMPORTANT: If the subject matter is serious, tragic, painful, "
+        f"or historically grave (war, genocide, atrocity, death, "
+        f"suffering, or similar), let your usual wit soften into genuine "
+        f"respect and gravity. Never joke about real historical tragedy "
+        f"or human suffering, even lightly. Your voice may remain "
+        f"present, but reverence comes first."
     )
     try:
-        raw = generate_text(prompt)
+        return generate_text(prompt).strip()
     except Exception:
-        return None
+        return f"Ah, I believe you'll find {titles_list} quite to your taste."
 
-    if "|" not in raw:
-        return None
-    title_part, _, author_part = raw.partition("|")
-    title = title_part.strip()
-    author = author_part.strip() or None
-
+def get_external_recommendation(query: str) -> ExternalRecommendation | None:
+    """Called whenever no visible match exists — independent of
+    whether a restricted_hint also exists, per Andy's design decision:
+    "the librarian knows all books", so a club hint and a suggestion
+    from the wider world are not mutually exclusive.
+    """
+    list_prompt = (
+        f"Someone is looking for a book matching this description: "
+        f'"{query}". Suggest up to three real, existing books that '
+        f"match, ranked best first. Reply with one book per line, "
+        f"nothing else, in exactly this format:\nTitle | Author"
+    )
     try:
-        search_results = search_books(f"{title} {author or ''}".strip())
+        raw = generate_text(list_prompt)
     except Exception:
-        search_results = []
+        return None
 
-    if search_results:
-        best = search_results[0]
-        cover_url = (
-            f"https://covers.openlibrary.org/b/id/{best.cover_id}-M.jpg"
-            if best.cover_id
-            else None
+    parsed: list[tuple[str, str | None]] = []
+    for line in raw.splitlines():
+        if "|" not in line:
+            continue
+        title_part, _, author_part = line.partition("|")
+        title = title_part.strip()
+        author = author_part.strip() or None
+        if title:
+            parsed.append((title, author))
+
+    if not parsed:
+        return None
+
+    books: list[ExternalBook] = []
+    for title, author in parsed[:3]:
+        try:
+            search_results = search_books(f"{title} {author or ''}".strip())
+        except Exception:
+            search_results = []
+
+        cover_url = None
+        isbn = None
+        work_key = None
+        if search_results:
+            best = search_results[0]
+            title = best.title
+            author = best.author
+            isbn = best.isbn
+            work_key = best.work_key
+            if best.cover_id:
+                cover_url = f"https://covers.openlibrary.org/b/id/{best.cover_id}-M.jpg"
+
+        books.append(
+            ExternalBook(title=title, author=author, cover_url=cover_url, isbn=isbn, work_key=work_key)
         )
-        return ExternalRecommendation(
-            title=best.title, author=best.author, cover_url=cover_url, isbn=best.isbn
-        )
 
-    return ExternalRecommendation(title=title, author=author, cover_url=None, isbn=None)
+    titles_list = ", ".join(b.title for b in books)
+    remark_prompt = (
+        f"You are Lord Byron, speaking as a witty, slightly arrogant but "
+        f'charming 19th-century English gentleman librarian. Someone asked '
+        f'for a book matching: "{query}". You want to recommend these '
+        f"book(s): {titles_list}. Write ONE short remark (2-4 sentences "
+        f"total), in character, dandyish and a touch superior but "
+        f"ultimately warm and enthusiastic, addressing the person "
+        f"informally in period style. Mention the book(s) naturally.\n\n"
+        f"IMPORTANT: If the subject matter is serious, tragic, painful, "
+        f"or historically grave (war, genocide, atrocity, death, "
+        f"suffering, or similar), let your usual wit soften into genuine "
+        f"respect and gravity. Never joke about real historical tragedy "
+        f"or human suffering, even lightly. Your voice may remain "
+        f"present, but reverence comes first."
+    )
+    try:
+        remark = generate_text(remark_prompt).strip()
+    except Exception:
+        remark = f"I daresay you shall find {titles_list} most diverting."
 
+    return ExternalRecommendation(books=books, remark=remark)
 
 __all__ = [
-    "LibrarianMatch",
-    "RestrictedHint",
-    "LibrarianResult",
-    "ExternalRecommendation",
-    "ask_librarian",
-    "get_external_recommendation",
-    "MATCH_THRESHOLD",
+    "LibrarianMatch", "RestrictedHint", "LibrarianResult",
+    "ExternalBook", "ExternalRecommendation",
+    "ask_librarian", "get_external_recommendation", "MATCH_THRESHOLD", "get_match_remark",
 ]

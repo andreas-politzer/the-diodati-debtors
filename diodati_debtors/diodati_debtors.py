@@ -26,6 +26,8 @@ from .ui.pages.communication import communication
 from .ui.pages.lent_out_books import lent_out_books
 from .ui.pages.lend_to_contact import lend_to_contact
 from .ui.pages.manual import manual
+from .ui.pages.librarian import librarian
+from .state.librarian_state import LibrarianState
 from .state.review_state import ReviewState
 from .state.post_state import PostState
 from .state.auth_state import AuthState
@@ -171,4 +173,7 @@ app.add_page(
 )
 app.add_page(
     manual, route="/manual"
+)
+app.add_page(
+    librarian, route="/librarian", on_load=AuthState.check_auth
 )

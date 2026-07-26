@@ -187,6 +187,7 @@ def dashboard() -> rx.Component:
             display="block",
         ),
         rx.link("☞ Communication", href="/communication", margin_bottom="0.5rem", display="block"),
+        rx.link("☞ Ask the Librarian", href="/librarian", margin_bottom="0.5rem", display="block"),
         
         rx.cond(
             LibraryState.error_message != "",

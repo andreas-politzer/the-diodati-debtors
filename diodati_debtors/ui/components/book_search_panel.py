@@ -53,10 +53,10 @@ def _result_card(result: BookSearchResultView) -> rx.Component:
 
 def book_search_panel() -> rx.Component:
     return rx.vstack(
-        meta_text("Search Open Library by title"),
+        meta_text("Search Open Library by title or author"),
         rx.hstack(
             rx.input(
-                placeholder="e.g. Der Untertan",
+                placeholder="",
                 value=LibraryState.search_query,
                 on_change=LibraryState.set_search_query,
             ),

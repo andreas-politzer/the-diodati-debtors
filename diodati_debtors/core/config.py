@@ -52,6 +52,7 @@ class Settings:
     )
     gemini_api_key: str = os.environ.get("GEMINI_API_KEY", "")
     gemini_model: str = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
+    gemini_embedding_model: str = os.environ.get("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
     gemini_base_url: str = os.environ.get(
         "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
     )

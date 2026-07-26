@@ -467,6 +467,55 @@ def test_list_books_for_owner_search_and_genre_combined(db):
 
     assert [b.title for b in results] == ["Dracula"]
 
+def test_set_summary_computes_embedding(db, monkeypatch):
+    owner_id = _make_user(db, "owner_embed1@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Frankenstein")
+
+    monkeypatch.setattr(book_service, "embed_text", lambda text, task_type="RETRIEVAL_DOCUMENT": [0.1, 0.2])
+
+    book_service.set_summary(book.id, owner_id=owner_id, summary="A scientist creates life.")
+
+    with db() as session:
+        from diodati_debtors.models.book import Book
+        stored = session.get(Book, book.id)
+        assert stored.embedding is not None
+
+
+def test_embedding_uses_ai_fallback_when_no_summary(db, monkeypatch):
+    owner_id = _make_user(db, "owner_embed2@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Dracula", author="Bram Stoker")
+
+    monkeypatch.setattr(book_service, "generate_text", lambda prompt: "A gothic tale of dread.")
+    monkeypatch.setattr(book_service, "embed_text", lambda text, task_type="RETRIEVAL_DOCUMENT": [0.3, 0.4])
+
+    book_service.generate_summary_with_ai(book.id, owner_id=owner_id)
+
+    with db() as session:
+        from diodati_debtors.models.book import Book
+        stored = session.get(Book, book.id)
+        assert stored.embedding is not None
+
+
+def test_embedding_failure_does_not_break_summary_save(db, monkeypatch):
+    owner_id = _make_user(db, "owner_embed3@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Carmilla")
+
+    def failing_embed(text, task_type="RETRIEVAL_DOCUMENT"):
+        raise ValueError("simulated Gemini outage")
+
+    monkeypatch.setattr(book_service, "embed_text", failing_embed)
+
+    result = book_service.set_summary(book.id, owner_id=owner_id, summary="A vampire tale.")
+
+    assert result.summary == "A vampire tale."  # save still succeeded
+
+
+def test_book_service_still_has_no_reflex_dependency_after_embedding():
+    with open(book_service.__file__, encoding="utf-8") as f:
+        source = f.read()
+    assert "import reflex" not in source
+    assert "from reflex" not in source
+
 
 def test_book_service_has_no_reflex_dependency():
     """Static source check, per the Architecture Contract."""

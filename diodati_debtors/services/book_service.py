@@ -10,14 +10,16 @@ delegated to a UI-level "trust the button was hidden" assumption).
 delete_book blocks on ANY loan history (not just active loans) — see
 BookHasLoanHistoryError docstring.
 """
-
 from __future__ import annotations
 
 import datetime as dt
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
 from dataclasses import asdict, dataclass
-
 from sqlalchemy import or_, select
-
 from ..core.exceptions import (
     BookHasLoanHistoryError,
     BookHasPendingLoanRequestError,
@@ -40,7 +42,7 @@ from ..models.loan_request import LoanRequest
 from ..models.user import User
 from ..core.exceptions import SummaryGenerationError
 from ..models.enums import SummarySource
-from .external.gemini_client import generate_text
+from .external.gemini_client import embed_text, generate_text
 
 @dataclass(frozen=True)
 class BookMetadataResult:
@@ -251,7 +253,43 @@ def update_book(
         book.genre = BookGenre(genre) if genre else None
         session.flush()
         return _to_result(book)
-    
+def _compute_and_store_embedding(session, book: Book) -> None:
+    """Always ensures a book has a usable embedding, even without a
+    visible Book.summary. If summary exists, embed it directly. If
+    not, generate a throwaway description via Gemini purely to embed
+    it — never stored as Book.summary, never shown to the user. The
+    owner alone decides whether/when a visible summary exists (see
+    the Synopsis Pipeline's "Generate with AI" button) — this must
+    never silently fill that field.
+
+    Failures here are never shown to the user (embedding is an
+    enhancement, not core functionality) — but they ARE logged, so a
+    systematic problem (e.g. a retired Gemini model, an extended
+    outage) is discoverable rather than silently invisible.
+    """
+    text_to_embed = book.summary
+    if not text_to_embed:
+        author_part = f" by {book.author}" if book.author else ""
+        genre_part = f" ({book.genre.value})" if book.genre else ""
+        prompt = (
+            f"In 2-3 sentences, describe the mood, themes, and setting "
+            f"of the book \"{book.title}\"{author_part}{genre_part}. "
+            f"This is for internal search purposes only."
+        )
+        try:
+            text_to_embed = generate_text(prompt)
+        except Exception:
+            logger.exception(
+                "Fallback description generation failed for book %s", book.id
+            )
+            text_to_embed = f"{book.title}{author_part}{genre_part}"
+
+    try:
+        vector = embed_text(text_to_embed, task_type="RETRIEVAL_DOCUMENT")
+        book.embedding = json.dumps(vector)
+    except Exception:
+        logger.exception("Embedding computation failed for book %s", book.id)
+
 def set_summary(book_id: int, owner_id: int, summary: str) -> BookResult:
     """Manually set a book's summary. Owner-only.
 
@@ -274,9 +312,9 @@ def set_summary(book_id: int, owner_id: int, summary: str) -> BookResult:
         book.summary = stripped
         book.summary_source = SummarySource.OWNER
         session.flush()
+        _compute_and_store_embedding(session, book)
         return _to_result(book)
-
-
+       
 def fetch_summary_from_open_library(book_id: int, owner_id: int) -> BookResult:
     """Best-effort: Open Library's description field is not reliably
     present (a known upstream limitation — see project vault). Owner-
@@ -320,9 +358,9 @@ def fetch_summary_from_open_library(book_id: int, owner_id: int) -> BookResult:
         book.summary = stripped
         book.summary_source = SummarySource.OPEN_LIBRARY
         session.flush()
+        _compute_and_store_embedding(session, book)
         return _to_result(book)
-
-
+     
 def generate_summary_with_ai(book_id: int, owner_id: int) -> BookResult:
     """Generate a spoiler-free summary via Gemini. Owner-only.
 
@@ -359,8 +397,9 @@ def generate_summary_with_ai(book_id: int, owner_id: int) -> BookResult:
         book.summary = stripped
         book.summary_source = SummarySource.AI_GENERATED
         session.flush()
+        _compute_and_store_embedding(session, book)
         return _to_result(book)
-    
+       
 def clear_summary(book_id: int, owner_id: int) -> BookResult:
     """Remove a book's summary entirely. Owner-only.
 

@@ -127,7 +127,7 @@ def ask_librarian(query: str, requester_id: int) -> LibrarianResult:
     match" outcome — that's a valid result, not an error. Network/API
     failures still propagate as their own natural exception.
     """
-    query_vector = embed_text(query, task_type="RETRIEVAL_QUERY")
+   
     visible_owner_ids = get_visible_owner_ids(requester_id)
 
     with get_session() as session:
@@ -138,6 +138,8 @@ def ask_librarian(query: str, requester_id: int) -> LibrarianResult:
                 for b in direct_matches[:5]
             ]
             return LibrarianResult(matches=matches, restricted_hint=None)
+
+        query_vector = embed_text(query, task_type="RETRIEVAL_QUERY")
 
         all_embedded_books = session.scalars(
             select(Book).where(Book.embedding.is_not(None))

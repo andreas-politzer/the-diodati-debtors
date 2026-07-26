@@ -169,25 +169,36 @@ def dashboard() -> rx.Component:
                 page_title("My Library"),
             ),
         ),
-        meta_text(f"Logged in as {AuthState.current_user_display_name}", margin_bottom="1rem"),
-        rx.link("☞ Add a book", href="/add-book", margin_bottom="0.5rem", display="block"),
-        rx.link("☞ Clubs", href="/clubs", margin_bottom="0.5rem", display="block"),
-        rx.link("☞ Bookmates", href="/members", margin_bottom="0.5rem", display="block"),
-        rx.link(
-            rx.hstack(
-                rx.text("☞ Organize"),
-                rx.cond(
-                    OrganizeState.pending_count > 0,
-                    rx.text(f"({OrganizeState.pending_count})", color=Color.accent, font_weight="700"),
+        rx.hstack(
+            rx.vstack(
+                meta_text(f"Logged in as {AuthState.current_user_display_name}", margin_bottom="0.5rem"),
+                rx.link("☞ Add a book", href="/add-book", display="block"),
+                rx.link("☞ Clubs", href="/clubs", display="block"),
+                rx.link("☞ Bookmates", href="/members", display="block"),
+                rx.link(
+                    rx.hstack(
+                        rx.text("☞ Organize"),
+                        rx.cond(
+                            OrganizeState.pending_count > 0,
+                            rx.text(f"({OrganizeState.pending_count})", color=Color.accent, font_weight="700"),
+                        ),
+                        spacing="1",
+                    ),
+                    href="/organize",
+                    display="block",
                 ),
-                spacing="1",
+                rx.link("☞ Communication", href="/communication", display="block"),
+                rx.link("☞ Ask the Librarian", href="/librarian", display="block"),
+                spacing="2",
+                align="start",
+                width="230px",
+                flex_shrink="0",
             ),
-            href="/organize",
-            margin_bottom="0.5rem",
-            display="block",
+            rx.image(src="/images/trinity-library.jpg", width="100%", margin_left="1rem"),
+            spacing="5",
+            align="start",
+            margin_bottom="1.5rem",
         ),
-        rx.link("☞ Communication", href="/communication", margin_bottom="0.5rem", display="block"),
-        rx.link("☞ Ask the Librarian", href="/librarian", margin_bottom="0.5rem", display="block"),
         
         rx.cond(
             LibraryState.error_message != "",

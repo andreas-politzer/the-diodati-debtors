@@ -51,7 +51,9 @@ def _contact_summary(contact: ContactView) -> rx.Component:
 def members() -> rx.Component:
     return shell(
         page_title("My Bookmates"),
-        rx.box(height="2rem"),
+        rx.image(src="/images/lord-byron-sepia2.jpg", width="520px", margin_top="0.5rem", margin_bottom="0.5rem"),
+        meta_text("Polidori, Mary Shelley, and Byron — the original bookmates, Villa Diodati, 1816."),
+        rx.box(height="1.5rem"),
         rx.hstack(
             rx.vstack(
                 page_title("Club Members"),

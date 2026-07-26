@@ -18,7 +18,7 @@ are the members who haven't returned a borrowed book yet.
 
 ## Status
 
-**Working and tested (134 passing unit tests)**
+**Working and tested (155 passing unit tests)**
 
 - Full auth flow: registration, login, session cookie
 - Multi-club membership: found a club, browse/join others, founder
@@ -55,6 +55,15 @@ are the members who haven't returned a borrowed book yet.
   shared Post entity, different projections), Reviews (owner/borrower-
   only, owl rating instead of stars), and a three-source Synopsis
   pipeline (manual, Open Library, Google Gemini)
+- **Ask the Librarian**: semantic, natural-language book search over
+  the club's own collection, powered by Gemini text embeddings and
+  cosine similarity — with a built-in discretion principle (a match
+  outside the requester's visible scope is never revealed by title or
+  owner, only hinted at by club name). When nothing matches locally,
+  the librarian — voiced in character as Lord Byron, who was actually
+  present at Villa Diodati in 1816 — suggests up to three real books
+  from the wider world, enriched with genuine cover art via Open
+  Library
 - A redesigned landing page: a real 1835 Villa Diodati engraving, the
   project's origin story, and a philosophy statement — an invitation
   rather than an immediate login wall
@@ -67,8 +76,7 @@ are the members who haven't returned a borrowed book yet.
 
 **Deliberately deferred (documented concepts, not yet implemented)**
 
-- Search and filtering, tags for books, bulk import from existing
-  spreadsheets/exports
+- Tags for books, bulk import from existing spreadsheets/exports
 - Reservations
 - Deeper Open Library integration (Work API for more reliable
   descriptions)
@@ -77,13 +85,10 @@ are the members who haven't returned a borrowed book yet.
   focused on book clubs rather than becoming a general-purpose social
   network
 - A horizontal navigation redesign (currently a vertical link list)
-- The Diodati Matchmaker — a semantic recommendation agent that
-  gradually evolves from rule-based recommendations to
-  embedding-powered suggestions
 
 See the project documentation (`Implementation Specification.md`,
 `Domain Model v2.md`, `Communication Domain Model.md`,
-`Platform Vision.md`, `AI Matchmaker Vision.md`,
+`Platform Vision.md`, `Ask the Librarian Vision.md`,
 `Bulk Import Domain Model.md`) for the complete roadmap and
 architectural decisions.
 
@@ -106,7 +111,7 @@ project.
 - [Reflex](https://reflex.dev) — Python-only frontend/backend, compiled to React
 - MySQL (via Docker) + SQLAlchemy + Alembic
 - [Open Library](https://openlibrary.org) for book metadata, covers, and available descriptions
-- [Google Gemini](https://ai.google.dev) for AI-generated book summaries
+- [Google Gemini](https://ai.google.dev) for AI-generated book summaries and text embeddings
 - Design tokens based on the project's design contract
 - Hosted on [Railway](https://railway.com) (EU West)
 
@@ -137,9 +142,9 @@ for email addresses, clubs, and assigned roles).
 - `core/` — framework-agnostic configuration, exceptions, normalization/time policy, password hashing
 - `db/` — SQLAlchemy engine, sessions, declarative base (schema source of truth via SQLAlchemy models and Alembic migrations)
 - `models/` — SQLAlchemy entities only; no business logic
-- `services/` — business logic organized by bounded context (`auth_service`, `user_service`, `book_service`, `loan_service`, `group_service`, `contact_service`, `post_service`, `comment_service`, `review_service`, `trust_service`, ...)
+- `services/` — business logic organized by bounded context (`auth_service`, `user_service`, `book_service`, `loan_service`, `group_service`, `contact_service`, `post_service`, `comment_service`, `review_service`, `trust_service`, `librarian_service`, ...)
 - External integrations live in `services/external/` as thin API clients (Open Library, Google Gemini). They contain no business logic and are responsible only for communicating with third-party services.
-- `state/` — the only layer connecting Reflex UI and services, split by bounded context (`AuthState`, `GroupState`, `LibraryState`, `OrganizeState`, `PostState`, `ReviewState`, `ContactState`)
+- `state/` — the only layer connecting Reflex UI and services, split by bounded context (`AuthState`, `GroupState`, `LibraryState`, `OrganizeState`, `PostState`, `ReviewState`, `ContactState`, `LibrarianState`)
 - `ui/` — presentation only; imports state, never services or models directly; reusable components shared across pages
 
 Layering is a hard constraint.
@@ -153,8 +158,11 @@ Business rules live exclusively inside the service layer.
 Services return domain objects and foreign-key IDs rather than
 presentation-ready display names. UI-specific enrichment belongs to
 the State layer, keeping the separation of responsibilities consistent
-across every feature. Trust signals follow the same "store facts,
-calculate state" principle — nothing is ever stored pre-computed.
+across every feature. Trust signals and book embeddings both follow
+the same "store facts, calculate/derive state" principle — nothing is
+ever stored pre-computed as the source of truth, and a failure to
+refresh a derived artefact (an embedding, a search index) never
+breaks the core operation that triggered it.
 
 A Loan's borrower is either a registered User or a personal Contact —
 never both, never neither, enforced in the service layer, never as a
@@ -164,7 +172,7 @@ database constraint.
 
 Current test suite:
 
-- 130 passing unit tests
+- 155 passing unit tests
 - Service-layer and domain-rule focused
 - Fast execution suitable for continuous development
 

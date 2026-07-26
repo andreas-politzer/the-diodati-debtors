@@ -46,9 +46,23 @@ def landing() -> rx.Component:
             "Build a shared community library without giving up ownership "
             "of your books."
         ),
-        body_text("• Catalogue your personal library."),
-        body_text("• Lend and borrow within trusted book clubs."),
-        body_text("• Discuss, review and discover books together."),
+        body_text("• Catalogue your personal library — no club required."),
+        body_text(
+            "• Lend and borrow within trusted book clubs, or lend "
+            "directly to friends and family who don't use the app."
+        ),
+        body_text(
+            "• Trust signals help you decide who to lend to — never "
+            "scores, never rankings, just plain words."
+        ),
+        body_text(
+            "• Discuss books, write reviews, and read AI-assisted "
+            "synopses together."
+        ),
+        body_text(
+            "• Or simply ask the librarian, who understands what "
+            "you're looking for in plain language, not just keywords."
+        ),
         divider(),
         rx.link(primary_button("Enter Library"), href="/login"),
         rx.link(

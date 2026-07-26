@@ -106,6 +106,55 @@ def test_ask_librarian_handles_user_with_no_visible_books_at_all(db, monkeypatch
     assert result.matches == []
     assert result.no_match_at_all is True
 
+def test_get_external_recommendation_success(monkeypatch):
+    monkeypatch.setattr(librarian_service, "generate_text", lambda prompt: "Frankenstein | Mary Shelley")
+
+    from diodati_debtors.services.book_service import BookSearchResult
+
+    fake_result = BookSearchResult(
+        work_key="/works/OL1W", title="Frankenstein", author="Mary Shelley",
+        publish_year=1818, edition_count=50, cover_id=123, isbn="9780141439471",
+    )
+    monkeypatch.setattr(librarian_service, "search_books", lambda q: [fake_result])
+
+    result = librarian_service.get_external_recommendation("a scientist creates life")
+
+    assert result is not None
+    assert result.title == "Frankenstein"
+    assert result.author == "Mary Shelley"
+    assert result.isbn == "9780141439471"
+    assert result.cover_url == "https://covers.openlibrary.org/b/id/123-M.jpg"
+
+
+def test_get_external_recommendation_falls_back_without_open_library_match(monkeypatch):
+    monkeypatch.setattr(librarian_service, "generate_text", lambda prompt: "Some Rare Book | Some Author")
+    monkeypatch.setattr(librarian_service, "search_books", lambda q: [])
+
+    result = librarian_service.get_external_recommendation("something obscure")
+
+    assert result is not None
+    assert result.title == "Some Rare Book"
+    assert result.cover_url is None
+
+
+def test_get_external_recommendation_returns_none_on_unparseable_response(monkeypatch):
+    monkeypatch.setattr(librarian_service, "generate_text", lambda prompt: "I don't know what to suggest.")
+
+    result = librarian_service.get_external_recommendation("something weird")
+
+    assert result is None
+
+
+def test_get_external_recommendation_returns_none_on_gemini_failure(monkeypatch):
+    def failing_generate(prompt):
+        raise ValueError("simulated outage")
+
+    monkeypatch.setattr(librarian_service, "generate_text", failing_generate)
+
+    result = librarian_service.get_external_recommendation("anything")
+
+    assert result is None
+
 
 def test_librarian_service_has_no_reflex_dependency():
     with open(librarian_service.__file__, encoding="utf-8") as f:

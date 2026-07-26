@@ -23,6 +23,8 @@ from .group_service import get_visible_owner_ids
 from ..db.session import get_session
 from ..models.book import Book
 from ..models.group import GroupMembership
+from .external.gemini_client import embed_text, generate_text
+from .book_service import search_books
 
 MATCH_THRESHOLD = 0.75  # tunable without architecture changes — see Trust Signals for the same principle
 
@@ -64,6 +66,19 @@ class LibrarianResult:
             "no_match_at_all": self.no_match_at_all,
         }
 
+@dataclass(frozen=True)
+class ExternalRecommendation:
+    """A book Gemini suggests that isn't in the club's own library at
+    all — enriched with real cover/metadata via our existing Open
+    Library title search, when available."""
+
+    title: str
+    author: str | None
+    cover_url: str | None
+    isbn: str | None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 def _cosine_similarity(a: list[float], b: list[float]) -> float:
     dot = sum(x * y for x, y in zip(a, b))
@@ -134,5 +149,56 @@ def ask_librarian(query: str, requester_id: int) -> LibrarianResult:
 
         return LibrarianResult(matches=[], restricted_hint=None, no_match_at_all=True)
 
+def get_external_recommendation(query: str) -> ExternalRecommendation | None:
+    """Only called when ask_librarian() returns no_match_at_all=True.
+    Asks Gemini for a real, existing book matching the query's mood/
+    theme, then looks it up via Open Library's title search for real
+    cover art. Returns None if Gemini's suggestion can't be parsed or
+    found — the caller shows a graceful "even the librarian couldn't
+    find anything" message in that case, never an error.
+    """
+    prompt = (
+        f"Someone is looking for a book matching this description: "
+        f'"{query}". Suggest exactly one real, existing book that '
+        f"matches. Reply in exactly this format, nothing else: "
+        f"Title | Author"
+    )
+    try:
+        raw = generate_text(prompt)
+    except Exception:
+        return None
 
-__all__ = ["LibrarianMatch", "RestrictedHint", "LibrarianResult", "ask_librarian", "MATCH_THRESHOLD"]
+    if "|" not in raw:
+        return None
+    title_part, _, author_part = raw.partition("|")
+    title = title_part.strip()
+    author = author_part.strip() or None
+
+    try:
+        search_results = search_books(f"{title} {author or ''}".strip())
+    except Exception:
+        search_results = []
+
+    if search_results:
+        best = search_results[0]
+        cover_url = (
+            f"https://covers.openlibrary.org/b/id/{best.cover_id}-M.jpg"
+            if best.cover_id
+            else None
+        )
+        return ExternalRecommendation(
+            title=best.title, author=best.author, cover_url=cover_url, isbn=best.isbn
+        )
+
+    return ExternalRecommendation(title=title, author=author, cover_url=None, isbn=None)
+
+
+__all__ = [
+    "LibrarianMatch",
+    "RestrictedHint",
+    "LibrarianResult",
+    "ExternalRecommendation",
+    "ask_librarian",
+    "get_external_recommendation",
+    "MATCH_THRESHOLD",
+]

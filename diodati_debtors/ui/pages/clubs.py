@@ -8,6 +8,13 @@ Descriptions can be long (a proper "about us"), so: a multi-line
 text_area for editing, and a collapsible <details>/<summary> element
 for browsing — no Reflex state needed for the expand/collapse, it's
 native HTML behaviour.
+
+Header image: "Der Salon" (Verlag A.H. Payne, Leipzig, ed. E. Dohm &
+J. Rodenberg), a 19th-century German literary magazine cover — chosen
+for its literal depiction of a literary salon (people, books,
+conversation), even though German rather than tied directly to the
+Villa Diodati circle, per Andy's decision to prioritize thematic fit
+here over strict historical lineage.
 """
 
 from __future__ import annotations
@@ -49,61 +56,81 @@ def _available_group_row(group: dict) -> rx.Component:
 def clubs() -> rx.Component:
     return shell(
         page_title("Clubs"),
-        rx.cond(
-            GroupState.error_message != "",
-            rx.text(
-                GroupState.error_message,
-                font_family=Font.system,
-                font_size=Type.meta,
-                color=Color.warning,
-            ),
-        ),
-        rx.cond(
-            GroupState.info_message != "",
-            meta_text(GroupState.info_message),
-        ),
-        page_title("Found a new club"),
-        rx.form(
-            rx.hstack(
-                rx.input(placeholder="Club name", name="name", required=True),
-                primary_button("Found club", type="submit"),
-                spacing="3",
-            ),
-            on_submit=GroupState.create_group,
-            reset_on_submit=True,
-        ),
-        divider(),
-        rx.cond(
-            GroupState.current_group_id != "",
-            rx.fragment(
-                page_title("Edit current club's description"),
-                meta_text(GroupState.current_group_name),
+        rx.hstack(
+            rx.vstack(
+                rx.cond(
+                    GroupState.error_message != "",
+                    rx.text(
+                        GroupState.error_message,
+                        font_family=Font.system,
+                        font_size=Type.meta,
+                        color=Color.warning,
+                    ),
+                ),
+                rx.cond(
+                    GroupState.info_message != "",
+                    meta_text(GroupState.info_message),
+                ),
+                page_title("Found a new club"),
                 rx.form(
-                    rx.vstack(
-                        rx.text_area(
-                            placeholder="Tell people about your club — what you read, why you started it...",
-                            name="description",
-                            rows="5",
-                            width="100%",
-                            font_family=Font.body,
-                            font_size=Type.body,
-                        ),
-                        primary_button("Save", type="submit"),
+                    rx.hstack(
+                        rx.input(placeholder="Club name", name="name", required=True),
+                        primary_button("Found club", type="submit"),
                         spacing="3",
                     ),
-                    on_submit=GroupState.update_description,
+                    on_submit=GroupState.create_group,
+                    reset_on_submit=True,
                 ),
                 divider(),
+                rx.cond(
+                    GroupState.current_group_id != "",
+                    rx.fragment(
+                        page_title("Edit current club's description"),
+                        meta_text(GroupState.current_group_name),
+                        rx.form(
+                            rx.vstack(
+                                rx.text_area(
+                                    placeholder="Tell people about your club — what you read, why you started it...",
+                                    name="description",
+                                    rows="5",
+                                    width="100%",
+                                    font_family=Font.body,
+                                    font_size=Type.body,
+                                ),
+                                primary_button("Save", type="submit"),
+                                spacing="3",
+                            ),
+                            on_submit=GroupState.update_description,
+                        ),
+                        divider(),
+                    ),
+                ),
+                page_title("Browse clubs"),
+                rx.cond(
+                    GroupState.available_groups.length() > 0,
+                    rx.foreach(GroupState.available_groups, _available_group_row),
+                    body_text("No other clubs to join right now."),
+                ),
+                rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
+                spacing="2",
+                align="start",
+                width="420px",
+                flex_shrink="0",
             ),
+            rx.vstack(
+                rx.image(src="/images/literarischer-salon.jpg", width="100%"),
+                meta_text(
+                    "\"Der Salon,\" a 19th-century German literary "
+                    "magazine (Leipzig, ed. E. Dohm & J. Rodenberg) — "
+                    "depicting a literary salon gathering."
+                ),
+                width="100%",
+                spacing="1",
+            ),
+            spacing="5",
+            align="start",
         ),
-        page_title("Browse clubs"),
-        rx.cond(
-            GroupState.available_groups.length() > 0,
-            rx.foreach(GroupState.available_groups, _available_group_row),
-            body_text("No other clubs to join right now."),
-        ),
-        rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
-        max_width="40rem",
+        max_width="80rem",
     )
 
 

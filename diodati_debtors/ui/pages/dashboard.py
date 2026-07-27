@@ -173,6 +173,7 @@ def dashboard() -> rx.Component:
             rx.vstack(
                 meta_text(f"Logged in as {AuthState.current_user_display_name}", margin_bottom="0.5rem"),
                 rx.link("☞ Add a book", href="/add-book", display="block"),
+                rx.link("☞ Import Books", href="/import-books", margin_bottom="0.5rem", display="block"),
                 rx.link("☞ Clubs", href="/clubs", display="block"),
                 rx.link("☞ Bookmates", href="/members", display="block"),
                 rx.link(

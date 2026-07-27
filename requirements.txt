@@ -58,3 +58,6 @@ python-dotenv
 passlib[bcrypt]
 requests
 requests
+pandas
+openpyxl
+odfpy

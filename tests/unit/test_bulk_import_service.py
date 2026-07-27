@@ -164,6 +164,105 @@ def test_find_duplicates_returns_empty_for_owner_with_no_books(db):
 
     assert candidates == []
 
+def test_import_books_creates_books_from_rows(db):
+    owner_id = _make_user(db, "owner_import8@example.com")
+    mapping = bulk_import_service.detect_column_mapping(["Title", "Author", "ISBN"])
+    rows = [
+        {"Title": "Frankenstein", "Author": "Mary Shelley", "ISBN": "9780141439471"},
+        {"Title": "Dracula", "Author": "Bram Stoker", "ISBN": ""},
+    ]
+
+    report = bulk_import_service.import_books(owner_id, rows, mapping, skip_row_indices=set())
+
+    assert report.total_rows == 2
+    assert report.imported_count == 2
+    assert report.skipped == []
+
+
+def test_import_books_skips_rows_missing_title(db):
+    owner_id = _make_user(db, "owner_import9@example.com")
+    mapping = bulk_import_service.detect_column_mapping(["Title", "Author"])
+    rows = [
+        {"Title": "", "Author": "Nobody"},
+        {"Title": "Real Book", "Author": "Real Author"},
+    ]
+
+    report = bulk_import_service.import_books(owner_id, rows, mapping, skip_row_indices=set())
+
+    assert report.imported_count == 1
+    assert len(report.skipped) == 1
+    assert report.skipped[0].reason == "missing_title"
+
+
+def test_import_books_skips_rows_marked_as_duplicates(db):
+    owner_id = _make_user(db, "owner_import10@example.com")
+    mapping = bulk_import_service.detect_column_mapping(["Title"])
+    rows = [{"Title": "Book A"}, {"Title": "Book B"}]
+
+    report = bulk_import_service.import_books(owner_id, rows, mapping, skip_row_indices={0})
+
+    assert report.imported_count == 1
+    assert len(report.skipped) == 1
+    assert report.skipped[0].reason == "duplicate_skipped"
+    assert report.skipped[0].row_index == 0
+
+
+def test_import_books_never_aborts_on_individual_row_failure(db, monkeypatch):
+    owner_id = _make_user(db, "owner_import11@example.com")
+    mapping = bulk_import_service.detect_column_mapping(["Title"])
+    rows = [{"Title": "Good Book"}, {"Title": "Bad Book"}, {"Title": "Another Good Book"}]
+
+    original_create_book = bulk_import_service.create_book
+
+    def flaky_create_book(**kwargs):
+        if kwargs.get("title") == "Bad Book":
+            raise ValueError("simulated failure")
+        return original_create_book(**kwargs)
+
+    monkeypatch.setattr(bulk_import_service, "create_book", flaky_create_book)
+
+    report = bulk_import_service.import_books(owner_id, rows, mapping, skip_row_indices=set())
+
+    assert report.imported_count == 2
+    assert len(report.skipped) == 1
+    assert report.skipped[0].reason == "creation_failed"
+
+
+def test_import_books_generates_ai_summaries_when_requested(db, monkeypatch):
+    owner_id = _make_user(db, "owner_import12@example.com")
+    mapping = bulk_import_service.detect_column_mapping(["Title"])
+    rows = [{"Title": "Some Book"}]
+
+    called_with = {}
+
+    def fake_generate_summary(book_id, owner_id):
+        called_with["book_id"] = book_id
+        called_with["owner_id"] = owner_id
+
+    monkeypatch.setattr(bulk_import_service, "generate_summary_with_ai", fake_generate_summary)
+
+    bulk_import_service.import_books(
+        owner_id, rows, mapping, skip_row_indices=set(), generate_ai_summaries=True
+    )
+
+    assert called_with.get("owner_id") == owner_id
+
+
+def test_import_books_summary_failure_does_not_break_import(db, monkeypatch):
+    owner_id = _make_user(db, "owner_import13@example.com")
+    mapping = bulk_import_service.detect_column_mapping(["Title"])
+    rows = [{"Title": "Some Book"}]
+
+    def failing_generate_summary(book_id, owner_id):
+        raise ValueError("simulated Gemini outage")
+
+    monkeypatch.setattr(bulk_import_service, "generate_summary_with_ai", failing_generate_summary)
+
+    report = bulk_import_service.import_books(
+        owner_id, rows, mapping, skip_row_indices=set(), generate_ai_summaries=True
+    )
+
+    assert report.imported_count == 1  # book creation itself still succeeded
 
 def test_bulk_import_service_has_no_reflex_dependency():
     with open(bulk_import_service.__file__, encoding="utf-8") as f:

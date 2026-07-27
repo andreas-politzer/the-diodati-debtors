@@ -15,6 +15,10 @@ from sqlalchemy import select
 
 from ..db.session import get_session
 from ..models.book import Book
+import io
+
+import pandas as pd
+from .book_service import create_book, generate_summary_with_ai
 
 _SYNONYMS: dict[str, list[str]] = {
     "title": ["title", "book title", "buchtitel", "titel", "name"],
@@ -110,6 +114,42 @@ def find_duplicates(
                 )
 
         return candidates
+    
+def parse_uploaded_file(filename: str, content: bytes) -> tuple[list[str], list[dict]]:
+    """Reads CSV, XLSX, or ODS into a neutral (headers, rows) shape —
+    a single entry point regardless of format, per the Domain Model's
+    "File Reader" responsibility. Engine choice is automatic based on
+    file extension; pandas + openpyxl/odfpy handle the format
+    differences internally.
+
+    Raises ValueError for unsupported extensions or unreadable files —
+    not a DiodatiError, since this is closer to input validation than
+    a business rule (consistent with how ISBN lookup failures are
+    handled elsewhere).
+    """
+    lower_name = filename.lower()
+
+    try:
+        if lower_name.endswith(".csv"):
+            df = pd.read_csv(io.BytesIO(content))
+        elif lower_name.endswith(".xlsx"):
+            df = pd.read_excel(io.BytesIO(content), engine="openpyxl")
+        elif lower_name.endswith(".ods"):
+            df = pd.read_excel(io.BytesIO(content), engine="odf")
+        else:
+            raise ValueError(
+                f"Unsupported file type: {filename}. Please upload a "
+                f".csv, .xlsx, or .ods file."
+            )
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"Could not read the file: {e}") from e
+
+    df = df.fillna("")
+    headers = [str(col) for col in df.columns]
+    rows = df.astype(str).to_dict(orient="records")
+    return headers, rows
 
 
 def _normalize(header: str) -> str:
@@ -158,5 +198,94 @@ def is_high_confidence_mapping(mapping: dict[str, ColumnMatch | None]) -> bool:
     title_match = mapping.get("title")
     return title_match is not None and title_match.confidence == "high"
 
+@dataclass(frozen=True)
+class SkippedRow:
+    row_index: int
+    reason: str  # "missing_title" | "duplicate_skipped" | "creation_failed"
+    detail: str
 
-__all__ = ["ColumnMatch", "detect_column_mapping", "is_high_confidence_mapping", "DuplicateCandidate", "find_duplicates",]
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class ImportReport:
+    total_rows: int
+    imported_count: int
+    skipped: list[SkippedRow]
+
+    def to_dict(self) -> dict:
+        return {
+            "total_rows": self.total_rows,
+            "imported_count": self.imported_count,
+            "skipped": [s.to_dict() for s in self.skipped],
+        }
+
+
+def import_books(
+    owner_id: int,
+    rows: list[dict],
+    mapping: dict[str, ColumnMatch | None],
+    skip_row_indices: set[int],
+    generate_ai_summaries: bool = False,
+) -> ImportReport:
+    """Creates Book rows from parsed import data. Never aborts the
+    whole batch over individual bad rows — every failure is recorded
+    in the report, not raised, per the Domain Model's "robust rather
+    than strict" principle. skip_row_indices are rows the user
+    explicitly chose to skip as duplicates.
+    """
+    title_header = mapping["title"].header if mapping.get("title") else None
+    author_header = mapping["author"].header if mapping.get("author") else None
+    isbn_header = mapping["isbn"].header if mapping.get("isbn") else None
+
+    skipped: list[SkippedRow] = []
+    imported_count = 0
+
+    for index, row in enumerate(rows):
+        if index in skip_row_indices:
+            skipped.append(
+                SkippedRow(row_index=index, reason="duplicate_skipped", detail="Matched an existing book.")
+            )
+            continue
+
+        row_title = (row.get(title_header) or "").strip() if title_header else ""
+        if not row_title:
+            skipped.append(
+                SkippedRow(row_index=index, reason="missing_title", detail="No title found in this row.")
+            )
+            continue
+
+        row_author = (row.get(author_header) or "").strip() or None if author_header else None
+        row_isbn = (row.get(isbn_header) or "").strip() or None if isbn_header else None
+
+        try:
+            book = create_book(
+                owner_id=owner_id, title=row_title, author=row_author, isbn=row_isbn
+            )
+        except Exception as e:
+            skipped.append(SkippedRow(row_index=index, reason="creation_failed", detail=str(e)))
+            continue
+
+        imported_count += 1
+
+        if generate_ai_summaries:
+            try:
+                generate_summary_with_ai(book.id, owner_id=owner_id)
+            except Exception:
+                pass  # best-effort enrichment, never breaks the import itself
+
+    return ImportReport(total_rows=len(rows), imported_count=imported_count, skipped=skipped)
+
+
+__all__ = [
+    "ColumnMatch",
+    "DuplicateCandidate",
+    "SkippedRow",
+    "ImportReport",
+    "detect_column_mapping",
+    "is_high_confidence_mapping",
+    "find_duplicates",
+    "parse_uploaded_file",
+    "import_books",
+]

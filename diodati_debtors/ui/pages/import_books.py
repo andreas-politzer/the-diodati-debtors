@@ -96,6 +96,12 @@ def import_books() -> rx.Component:
                                 on_change=BulkImportState.set_selected_isbn_header,
                             ),
                         ),
+                        primary_button(
+                            "Confirm mapping",
+                            on_click=BulkImportState.confirm_mapping,
+                            type="button",
+                            margin_top="0.5rem",
+                        ),
                         spacing="2",
                     ),
                 ),

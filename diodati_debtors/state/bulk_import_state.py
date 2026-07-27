@@ -71,6 +71,13 @@ class BulkImportState(rx.State):
     async def handle_upload(self, files: list[rx.UploadFile]):
         self.error_message = ""
         self.info_message = ""
+        self.reviewing = False
+        self.duplicate_choices = []
+        self.report_total = 0
+        self.report_imported = 0
+        self.report_skipped_count = 0
+        self.report_imported_titles = []
+        self.report_skipped_titles = []
         if not files:
             return
 

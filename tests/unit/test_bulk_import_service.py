@@ -164,6 +164,55 @@ def test_find_duplicates_returns_empty_for_owner_with_no_books(db):
 
     assert candidates == []
 
+def test_find_duplicates_detects_repeats_within_same_file_by_isbn(db):
+    owner_id = _make_user(db, "owner_import14@example.com")
+    mapping = bulk_import_service.detect_column_mapping(["Title", "Author", "ISBN"])
+    rows = [
+        {"Title": "The Hobbit", "Author": "J.R.R. Tolkien", "ISBN": "9780261103344"},
+        {"Title": "The Hobbit", "Author": "J.R.R. Tolkien", "ISBN": "9780261103344"},
+    ]
+
+    candidates = bulk_import_service.find_duplicates(owner_id, rows, mapping)
+
+    assert len(candidates) == 1
+    assert candidates[0].row_index == 1
+    assert candidates[0].duplicate_of_row_index == 0
+    assert candidates[0].existing_book_id is None
+
+
+def test_find_duplicates_detects_repeats_within_same_file_by_title_author(db):
+    owner_id = _make_user(db, "owner_import15@example.com")
+    mapping = bulk_import_service.detect_column_mapping(["Title", "Author"])
+    rows = [
+        {"Title": "The Hobbit", "Author": "J.R.R. Tolkien"},
+        {"Title": "The Hobbit", "Author": "J.R.R. Tolkien"},
+    ]
+
+    candidates = bulk_import_service.find_duplicates(owner_id, rows, mapping)
+
+    assert len(candidates) == 1
+    assert candidates[0].row_index == 1
+    assert candidates[0].duplicate_of_row_index == 0
+
+
+def test_find_duplicates_prefers_existing_book_match_over_intra_file_match(db):
+    owner_id = _make_user(db, "owner_import16@example.com")
+    book_service.create_book(owner_id=owner_id, title="Dune", author="Frank Herbert", isbn="9780441172719")
+
+    mapping = bulk_import_service.detect_column_mapping(["Title", "Author", "ISBN"])
+    rows = [
+        {"Title": "Dune", "Author": "Frank Herbert", "ISBN": "9780441172719"},
+        {"Title": "Dune", "Author": "Frank Herbert", "ISBN": "9780441172719"},
+    ]
+
+    candidates = bulk_import_service.find_duplicates(owner_id, rows, mapping)
+
+    # Both rows should match the existing DB book, not each other —
+    # existing-book matches take priority per the search order.
+    assert len(candidates) == 2
+    assert all(c.existing_book_id is not None for c in candidates)
+    assert all(c.duplicate_of_row_index is None for c in candidates)
+
 def test_import_books_creates_books_from_rows(db):
     owner_id = _make_user(db, "owner_import8@example.com")
     mapping = bulk_import_service.detect_column_mapping(["Title", "Author", "ISBN"])

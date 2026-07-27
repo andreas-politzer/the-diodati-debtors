@@ -42,21 +42,38 @@ class DuplicateCandidate:
     row_title: str
     row_author: str | None
     row_isbn: str | None
-    existing_book_id: int
+    existing_book_id: int | None  # None when matched against another row in this file, not a saved book
     existing_book_title: str
     match_reason: str  # "isbn" | "title_author"
+    duplicate_of_row_index: int | None = None  # set when the match is an earlier row in the same upload
 
     def to_dict(self) -> dict:
         return asdict(self)
+    
+def _clean_isbn(raw_value: str | None) -> str | None:
+    """Strips the Excel formula wrapper some exporters (notably
+    Goodreads) use to preserve leading zeros, e.g. ="0141439793" — a
+    real edge case discovered while testing with an authentic
+    Goodreads-shaped export, not a hypothetical one.
+    """
+    if not raw_value:
+        return None
+    cleaned = raw_value.strip()
+    if cleaned.startswith('="') and cleaned.endswith('"'):
+        cleaned = cleaned[2:-1]
+    return cleaned.strip() or None
 
 
 def find_duplicates(
     owner_id: int, rows: list[dict], mapping: dict[str, "ColumnMatch | None"]
 ) -> list[DuplicateCandidate]:
-    """Checks each row against the owner's existing books. ISBN match
-    takes priority over title+author match, per the Domain Model.
-    Never merges automatically — every candidate is surfaced for the
-    user to decide (default: skip).
+    """Checks each row against (1) the owner's existing books, and (2)
+    earlier rows within the same uploaded file — a spreadsheet can
+    itself contain accidental repeat entries (discovered via a real
+    test file containing two identical "Hobbit" rows in one upload).
+    ISBN match takes priority over title+author match, per the Domain
+    Model. Never merges automatically — every candidate is surfaced
+    for the user to decide (default: skip).
     """
     title_header = mapping["title"].header if mapping.get("title") else None
     author_header = mapping["author"].header if mapping.get("author") else None
@@ -71,47 +88,77 @@ def find_duplicates(
         ).all()
 
         candidates: list[DuplicateCandidate] = []
+        seen_rows: list[tuple[int, str, str | None, str | None]] = []
+
         for index, row in enumerate(rows):
             row_title = (row.get(title_header) or "").strip()
             row_author = (row.get(author_header) or "").strip() if author_header else None
-            row_isbn = (row.get(isbn_header) or "").strip() if isbn_header else None
+            row_isbn = _clean_isbn(row.get(isbn_header)) if isbn_header else None
 
             if not row_title:
                 continue
 
-            matched_book = None
+            matched_book_id = None
+            matched_title = None
+            matched_row_index = None
             reason = None
 
             if row_isbn:
                 for book in existing_books:
                     if book.isbn and book.isbn.strip() == row_isbn:
-                        matched_book = book
+                        matched_book_id = book.id
+                        matched_title = book.title
                         reason = "isbn"
                         break
 
-            if matched_book is None and row_author:
+            if matched_book_id is None and row_author:
                 for book in existing_books:
                     if (
                         book.title.strip().lower() == row_title.lower()
                         and book.author
                         and book.author.strip().lower() == row_author.lower()
                     ):
-                        matched_book = book
+                        matched_book_id = book.id
+                        matched_title = book.title
                         reason = "title_author"
                         break
 
-            if matched_book is not None:
+            if matched_book_id is None:
+                if row_isbn:
+                    for seen_index, seen_title, _, seen_isbn in seen_rows:
+                        if seen_isbn and seen_isbn == row_isbn:
+                            matched_row_index = seen_index
+                            matched_title = seen_title
+                            reason = "isbn"
+                            break
+
+                if matched_row_index is None and row_author:
+                    for seen_index, seen_title, seen_author, _ in seen_rows:
+                        if (
+                            seen_title.lower() == row_title.lower()
+                            and seen_author
+                            and seen_author.lower() == row_author.lower()
+                        ):
+                            matched_row_index = seen_index
+                            matched_title = seen_title
+                            reason = "title_author"
+                            break
+
+            if matched_book_id is not None or matched_row_index is not None:
                 candidates.append(
                     DuplicateCandidate(
                         row_index=index,
                         row_title=row_title,
                         row_author=row_author,
                         row_isbn=row_isbn,
-                        existing_book_id=matched_book.id,
-                        existing_book_title=matched_book.title,
+                        existing_book_id=matched_book_id,
+                        existing_book_title=matched_title or "",
                         match_reason=reason,
+                        duplicate_of_row_index=matched_row_index,
                     )
                 )
+
+            seen_rows.append((index, row_title, row_author, row_isbn))
 
         return candidates
     
@@ -221,7 +268,6 @@ class ImportReport:
             "skipped": [s.to_dict() for s in self.skipped],
         }
 
-
 def import_books(
     owner_id: int,
     rows: list[dict],
@@ -257,7 +303,7 @@ def import_books(
             continue
 
         row_author = (row.get(author_header) or "").strip() or None if author_header else None
-        row_isbn = (row.get(isbn_header) or "").strip() or None if isbn_header else None
+        row_isbn = _clean_isbn(row.get(isbn_header)) if isbn_header else None
 
         try:
             book = create_book(

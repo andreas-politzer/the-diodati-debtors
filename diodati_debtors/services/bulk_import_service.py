@@ -11,6 +11,10 @@ unit test in isolation (per ChatGPT's review).
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from sqlalchemy import select
+
+from ..db.session import get_session
+from ..models.book import Book
 
 _SYNONYMS: dict[str, list[str]] = {
     "title": ["title", "book title", "buchtitel", "titel", "name"],
@@ -27,6 +31,85 @@ class ColumnMatch:
 
     def to_dict(self) -> dict:
         return asdict(self)
+    
+@dataclass(frozen=True)
+class DuplicateCandidate:
+    row_index: int
+    row_title: str
+    row_author: str | None
+    row_isbn: str | None
+    existing_book_id: int
+    existing_book_title: str
+    match_reason: str  # "isbn" | "title_author"
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+def find_duplicates(
+    owner_id: int, rows: list[dict], mapping: dict[str, "ColumnMatch | None"]
+) -> list[DuplicateCandidate]:
+    """Checks each row against the owner's existing books. ISBN match
+    takes priority over title+author match, per the Domain Model.
+    Never merges automatically — every candidate is surfaced for the
+    user to decide (default: skip).
+    """
+    title_header = mapping["title"].header if mapping.get("title") else None
+    author_header = mapping["author"].header if mapping.get("author") else None
+    isbn_header = mapping["isbn"].header if mapping.get("isbn") else None
+
+    if title_header is None:
+        return []
+
+    with get_session() as session:
+        existing_books = session.scalars(
+            select(Book).where(Book.owner_id == owner_id)
+        ).all()
+
+        candidates: list[DuplicateCandidate] = []
+        for index, row in enumerate(rows):
+            row_title = (row.get(title_header) or "").strip()
+            row_author = (row.get(author_header) or "").strip() if author_header else None
+            row_isbn = (row.get(isbn_header) or "").strip() if isbn_header else None
+
+            if not row_title:
+                continue
+
+            matched_book = None
+            reason = None
+
+            if row_isbn:
+                for book in existing_books:
+                    if book.isbn and book.isbn.strip() == row_isbn:
+                        matched_book = book
+                        reason = "isbn"
+                        break
+
+            if matched_book is None and row_author:
+                for book in existing_books:
+                    if (
+                        book.title.strip().lower() == row_title.lower()
+                        and book.author
+                        and book.author.strip().lower() == row_author.lower()
+                    ):
+                        matched_book = book
+                        reason = "title_author"
+                        break
+
+            if matched_book is not None:
+                candidates.append(
+                    DuplicateCandidate(
+                        row_index=index,
+                        row_title=row_title,
+                        row_author=row_author,
+                        row_isbn=row_isbn,
+                        existing_book_id=matched_book.id,
+                        existing_book_title=matched_book.title,
+                        match_reason=reason,
+                    )
+                )
+
+        return candidates
 
 
 def _normalize(header: str) -> str:
@@ -76,4 +159,4 @@ def is_high_confidence_mapping(mapping: dict[str, ColumnMatch | None]) -> bool:
     return title_match is not None and title_match.confidence == "high"
 
 
-__all__ = ["ColumnMatch", "detect_column_mapping", "is_high_confidence_mapping"]
+__all__ = ["ColumnMatch", "detect_column_mapping", "is_high_confidence_mapping", "DuplicateCandidate", "find_duplicates",]

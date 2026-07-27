@@ -18,7 +18,7 @@ are the members who haven't returned a borrowed book yet.
 
 ## Status
 
-**Working and tested (155 passing unit tests)**
+**Working and tested (181 passing unit tests)**
 
 - Full auth flow: registration, login, session cookie
 - Multi-club membership: found a club, browse/join others, founder
@@ -29,6 +29,13 @@ are the members who haven't returned a borrowed book yet.
   (borrow history, lent-out history grouped by book) on dedicated pages
 - Search, genre/availability filters, and sorting across Personal/Common
   Library, plus sorting for Borrowed/Lent-Out books
+- **Bulk Import**: upload an existing library as CSV, XLSX, or ODS —
+  automatic column detection (synonym-based, no AI needed), duplicate
+  detection (against existing books and within the same file),
+  progressive disclosure (one-click confirmation when detection is
+  confident, a manual mapping table otherwise), and a per-row error
+  report — verified against real, deliberately messy spreadsheets
+  (Goodreads-style exports, invalid ISBNs, missing fields)
 - **My Bookmates**: Club Members and personal Contacts side by side —
   Contacts are private, non-registered borrowers (a grandmother, a
   neighbour) who never touch the app themselves; the owner lends and

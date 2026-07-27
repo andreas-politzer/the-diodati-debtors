@@ -7,6 +7,10 @@ individual pages never need to think about font loading.
 top_right is optional — pages that need something in the top-right
 corner (e.g. a Log out link) pass a component; pages that don't
 (Landing, Imprint, ...) are unaffected, since it defaults to nothing.
+
+Outer box uses a flex column layout with the footer's margin_top="auto"
+so short pages still push the footer to the bottom of the screen
+(sticky footer), instead of it riding up right under the content.
 """
 
 from __future__ import annotations
@@ -86,11 +90,14 @@ def shell(
                 ),
                 width="100%",
                 padding_y=Space.md,
+                margin_top="auto",
             ),
             background_color=Color.background,
             min_height="100vh",
             width="100%",
             position="relative",
+            display="flex",
+            flex_direction="column",
         ),
     )
 

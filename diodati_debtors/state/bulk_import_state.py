@@ -186,6 +186,14 @@ class BulkImportState(rx.State):
         self.report_imported_titles = []
         self.report_skipped_titles = []
 
+    def show_detailed_mapping(self):
+        self.is_high_confidence = False
+
+    def cancel_upload(self):
+        self.uploaded_filename = ""
+        self.headers = []
+        self.rows = []
+
     async def run_import(self):
         self.error_message = ""
         auth_state = await self.get_state(AuthState)

@@ -161,6 +161,31 @@ def find_duplicates(
             seen_rows.append((index, row_title, row_author, row_isbn))
 
         return candidates
+def _read_csv_with_encoding_fallback(content: bytes) -> pd.DataFrame:
+    """Tries known encodings crossed with known delimiters,
+    deterministically. For each combination, tries a strict parse
+    first; if that fails due to malformed rows (a real issue in
+    large, user-submitted datasets like Book-Crossing, which contains
+    genuinely broken quote-escaping in some rows), retries the same
+    combination while skipping unparseable lines rather than
+    abandoning the whole file.
+    """
+    for encoding in ("utf-8", "utf-8-sig", "cp1252", "latin-1"):
+        for delimiter in (";", ",", "\t", "|"):
+            for on_bad_lines in ("error", "skip"):
+                try:
+                    df = pd.read_csv(
+                        io.BytesIO(content),
+                        sep=delimiter,
+                        engine="python",
+                        encoding=encoding,
+                        on_bad_lines=on_bad_lines,
+                    )
+                except (UnicodeDecodeError, pd.errors.ParserError, ValueError):
+                    continue
+                if len(df.columns) > 1:
+                    return df
+    raise ValueError("Could not determine the file's text encoding or delimiter.")
     
 def parse_uploaded_file(filename: str, content: bytes) -> tuple[list[str], list[dict]]:
     """Reads CSV, XLSX, or ODS into a neutral (headers, rows) shape —
@@ -178,7 +203,7 @@ def parse_uploaded_file(filename: str, content: bytes) -> tuple[list[str], list[
 
     try:
         if lower_name.endswith(".csv"):
-            df = pd.read_csv(io.BytesIO(content))
+            df = _read_csv_with_encoding_fallback(content)
         elif lower_name.endswith(".xlsx"):
             df = pd.read_excel(io.BytesIO(content), engine="openpyxl")
         elif lower_name.endswith(".ods"):

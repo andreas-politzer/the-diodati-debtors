@@ -2,6 +2,13 @@
 "Add/Import Books" two-column layout (left: existing manual/ISBN/title
 tools, right: this). Currently its own page; will be merged into
 add_book.py once both halves are stable.
+
+Header image: Ackermann's "Repository of Arts" — interior of James
+Lackington's "Temple of the Muses" bookshop, London, early 19th
+century. Lackington was one of the era's most influential booksellers
+and, as Lackington, Allen & Co., published the first edition of
+Frankenstein (1818) — a direct historical link, not just a themed
+illustration.
 """
 
 from __future__ import annotations
@@ -18,6 +25,14 @@ from ...state.bulk_import_state import BulkImportState
 def import_books() -> rx.Component:
     return shell(
         page_title("Import Books"),
+        rx.image(src="/images/temple-of-muses.jpg", width="100%", margin_bottom="0.5rem"),
+        meta_text(
+            "The Temple of the Muses, James Lackington's London bookshop — "
+            "once the largest in the world, known for its vast, "
+            "systematically catalogued stock. Lackington's firm later "
+            "published the first edition of Frankenstein (1818)."
+        ),
+        divider(),
         body_text(
             "Upload a CSV, XLSX, or ODS file from your existing library "
             "spreadsheet — we'll figure out which columns are which."
@@ -65,10 +80,10 @@ def import_books() -> rx.Component:
                         ),
                         rx.hstack(
                             primary_button("Yes, continue", on_click=BulkImportState.confirm_mapping, type="button"),
-                            primary_button("No, adjust mapping", type="button"),
+                            primary_button("No, adjust mapping", on_click=BulkImportState.show_detailed_mapping, type="button"),
+                            primary_button("Cancel", on_click=BulkImportState.cancel_upload, type="button"),
                             spacing="2",
                         ),
-                        spacing="2",
                     ),
                     rx.vstack(
                         body_text("Please confirm which column is which:"),
@@ -99,6 +114,12 @@ def import_books() -> rx.Component:
                         primary_button(
                             "Confirm mapping",
                             on_click=BulkImportState.confirm_mapping,
+                            type="button",
+                            margin_top="0.5rem",
+                        ),
+                        primary_button(
+                            "Cancel",
+                            on_click=BulkImportState.cancel_upload,
                             type="button",
                             margin_top="0.5rem",
                         ),
@@ -182,7 +203,7 @@ def import_books() -> rx.Component:
             ),
         ),
         rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
-        max_width="40rem",
+        max_width="56rem",
     )
 
 

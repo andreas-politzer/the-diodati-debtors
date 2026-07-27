@@ -282,7 +282,11 @@ class LibraryState(rx.State):
             views = sorted(views, key=lambda b: (b.location or "").lower())
         elif self.sort_option == "Availability":
             views = sorted(views, key=lambda b: b.is_on_loan)
-        # "Recently added" is the default order the service already returns.
+        elif self.sort_option == "Recently added":
+            views = list(reversed(views))
+        # The service's natural order (created_at ascending) is
+        # oldest-first — "Recently added" must reverse it to actually
+        # show newest first, matching what the label promises.
 
         return views
 

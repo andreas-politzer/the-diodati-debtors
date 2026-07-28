@@ -1,7 +1,7 @@
 """Title search panel — a separate way to populate BookForm, distinct
 from ISBN lookup. Presents candidate matches (with cover art from
 Open Library's Covers API) for the user to choose from; never
-auto-selects. Reuses the same LibraryState.form_* fields — BookForm
+auto-selects. Reuses the same BookDetailState.form_* fields — BookForm
 never needs to know where the data came from.
 
 Cover images use the flat, restrained treatment from the Phase 1
@@ -14,7 +14,7 @@ import reflex as rx
 
 from .button import primary_button
 from .label import meta_text
-from ...state.library_state import BookSearchResultView, LibraryState
+from ...state.book_detail_state import BookDetailState, BookSearchResultView
 
 
 def _result_card(result: BookSearchResultView) -> rx.Component:
@@ -39,7 +39,7 @@ def _result_card(result: BookSearchResultView) -> rx.Component:
             ),
             primary_button(
                 "Use this",
-                on_click=lambda: LibraryState.select_search_result(result.work_key),
+                on_click=lambda: BookDetailState.select_search_result(result.work_key),
                 type="button",
             ),
             spacing="1",
@@ -57,18 +57,18 @@ def book_search_panel() -> rx.Component:
         rx.hstack(
             rx.input(
                 placeholder="",
-                value=LibraryState.search_query,
-                on_change=LibraryState.set_search_query,
+                value=BookDetailState.search_query,
+                on_change=BookDetailState.set_search_query,
             ),
-            primary_button("☞ Search", on_click=LibraryState.run_search, type="button"),
+            primary_button("☞ Search", on_click=BookDetailState.run_search, type="button"),
             spacing="2",
         ),
         rx.cond(
-            LibraryState.search_results.length() > 0,
+            BookDetailState.search_results.length() > 0,
             rx.vstack(
-                rx.foreach(LibraryState.search_results, _result_card),
+                rx.foreach(BookDetailState.search_results, _result_card),
                 primary_button(
-                    "Clear results", on_click=LibraryState.clear_search, type="button"
+                    "Clear results", on_click=BookDetailState.clear_search, type="button"
                 ),
                 spacing="2",
                 margin_top="1rem",

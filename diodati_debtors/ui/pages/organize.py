@@ -107,7 +107,6 @@ def organize() -> rx.Component:
             meta_text(OrganizeState.info_message),
         ),
         divider(),
-        page_title("Needs Your Action"),
         rx.hstack(
             page_title("Pending Join Requests"),
             rx.text(OrganizeState.join_requests.length(), font_family=Font.system, font_size=Type.meta),

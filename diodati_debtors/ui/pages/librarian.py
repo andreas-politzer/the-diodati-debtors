@@ -67,6 +67,12 @@ def librarian() -> rx.Component:
                     width="100%",
                 ),
                 primary_button("Ask", on_click=LibrarianState.ask, type="button"),
+                body_text(
+                    "Pray, afford Master Georgie a moment's patience – the poor "
+                    "fellow was born in 1788, and though still in the prime of "
+                    "manhood, one must allow that the years begin to weigh upon "
+                    "a gentleman of such advanced standing."
+                ),
                 rx.cond(
                     LibrarianState.error_message != "",
                     rx.text(
@@ -80,6 +86,7 @@ def librarian() -> rx.Component:
                 align="start",
                 width="100%",
             ),
+            
             spacing="5",
             align="start",
             width="100%",

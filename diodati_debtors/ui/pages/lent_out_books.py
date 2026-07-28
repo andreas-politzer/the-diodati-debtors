@@ -11,7 +11,7 @@ import reflex as rx
 from ..components.card import card
 from ..components.label import body_text, meta_text, page_title
 from ..components.shell import shell
-from ...state.library_state import LentOutHistoryGroup, LentOutPeriod, LibraryState
+from ...state.loan_activity_state import LentOutHistoryGroup, LentOutPeriod, LoanActivityState
 
 
 def _period_row(period: LentOutPeriod) -> rx.Component:
@@ -41,8 +41,8 @@ def lent_out_books() -> rx.Component:
     return shell(
         page_title("My Lent-Out History"),
         rx.cond(
-            LibraryState.lent_out_history.length() > 0,
-            rx.foreach(LibraryState.lent_out_history, _book_group_card),
+            LoanActivityState.lent_out_history.length() > 0,
+            rx.foreach(LoanActivityState.lent_out_history, _book_group_card),
             body_text("You haven't lent out any books yet."),
         ),
         rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),

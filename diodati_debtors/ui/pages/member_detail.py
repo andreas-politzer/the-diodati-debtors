@@ -15,16 +15,16 @@ import reflex as rx
 from ..components.book_row import book_row
 from ..components.label import meta_text, page_title
 from ..components.shell import shell
-from ...state.library_state import LibraryState
+from ...state.member_library_state import MemberLibraryState
 
 
 def member_detail() -> rx.Component:
     return shell(
-        page_title(f"{LibraryState.viewing_member_name}'s Library"),
-        meta_text(f"Reliability: {LibraryState.viewing_member_reliability}"),
-        meta_text(f"Book Care: {LibraryState.viewing_member_book_care}"),
+        page_title(f"{MemberLibraryState.viewing_member_name}'s Library"),
+        meta_text(f"Reliability: {MemberLibraryState.viewing_member_reliability}"),
+        meta_text(f"Book Care: {MemberLibraryState.viewing_member_book_care}"),
         rx.grid(
-            rx.foreach(LibraryState.member_books, book_row),
+            rx.foreach(MemberLibraryState.member_books, book_row),
             columns="repeat(auto-fill, minmax(220px, 1fr))",
             gap="1rem",
             width="100%",

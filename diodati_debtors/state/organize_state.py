@@ -146,6 +146,9 @@ class OrganizeState(rx.State):
         self.error_message = ""
         self.info_message = ""
         auth_state = await self.get_state(AuthState)
+
+        matching_request = next((r for r in self.loan_requests if r.id == request_id), None)
+
         try:
             loan_service.approve_loan_request(
                 request_id, reviewer_id=int(auth_state.current_user_id),
@@ -154,7 +157,14 @@ class OrganizeState(rx.State):
         except DiodatiError as e:
             self.error_message = str(e)
         else:
-            self.info_message = "Loan request approved."
+            if matching_request:
+                self.info_message = (
+                    f"Approved {matching_request.requester_name}'s request for "
+                    f"\"{matching_request.book_title}\"."
+                    + (f" Your reply: \"{self.response_message_draft}\"" if self.response_message_draft else "")
+                )
+            else:
+                self.info_message = "Loan request approved."
             self.pending_response_request_id = 0
             await self.load_all()
 
@@ -162,6 +172,9 @@ class OrganizeState(rx.State):
         self.error_message = ""
         self.info_message = ""
         auth_state = await self.get_state(AuthState)
+
+        matching_request = next((r for r in self.loan_requests if r.id == request_id), None)
+
         try:
             loan_service.decline_loan_request(
                 request_id, reviewer_id=int(auth_state.current_user_id),
@@ -170,7 +183,14 @@ class OrganizeState(rx.State):
         except DiodatiError as e:
             self.error_message = str(e)
         else:
-            self.info_message = "Loan request declined."
+            if matching_request:
+                self.info_message = (
+                    f"Declined {matching_request.requester_name}'s request for "
+                    f"\"{matching_request.book_title}\"."
+                    + (f" Your reply: \"{self.response_message_draft}\"" if self.response_message_draft else "")
+                )
+            else:
+                self.info_message = "Loan request declined."
             self.pending_response_request_id = 0
             await self.load_all()
 

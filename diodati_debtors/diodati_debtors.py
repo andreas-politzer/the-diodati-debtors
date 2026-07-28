@@ -37,6 +37,9 @@ from .state.group_state import GroupState
 from .state.library_state import LibraryState
 from .state.organize_state import OrganizeState
 from .state.contact_state import ContactState
+from .state.book_detail_state import BookDetailState
+from .state.member_library_state import MemberLibraryState
+from .state.loan_activity_state import LoanActivityState
 
 
 class State(rx.State):
@@ -101,7 +104,14 @@ app.add_page(
 app.add_page(
     dashboard,
     route="/dashboard",
-    on_load=[AuthState.check_auth, GroupState.load_my_groups, LibraryState.load_all, OrganizeState.load_pending_count],
+    on_load=[
+        AuthState.check_auth,
+        GroupState.load_my_groups,
+        LibraryState.load_all,
+        LoanActivityState.load_borrowed_books,
+        LoanActivityState.load_lent_out_books,
+        OrganizeState.load_pending_count,
+    ],
 )
 app.add_page(
     global_board,
@@ -111,12 +121,12 @@ app.add_page(
 app.add_page(
     book_detail,
     route="/book/[book_id]",
-    on_load=[AuthState.check_auth, LibraryState.load_book_detail],
+    on_load=[AuthState.check_auth, BookDetailState.load_book_detail],
 )
 app.add_page(
     add_book,
     route="/add-book",
-    on_load=[AuthState.check_auth, LibraryState.reset_form_fields],
+    on_load=[AuthState.check_auth, BookDetailState.reset_form_fields],
 )
 app.add_page(
     organize,
@@ -126,12 +136,12 @@ app.add_page(
 app.add_page(
     member_detail,
     route="/members/[member_id]",
-    on_load=[AuthState.check_auth, LibraryState.load_member_library],
+    on_load=[AuthState.check_auth, MemberLibraryState.load_member_library],
 )
 app.add_page(
     edit_book,
     route="/book/[book_id]/edit",
-    on_load=[AuthState.check_auth, LibraryState.load_book_detail],
+    on_load=[AuthState.check_auth, BookDetailState.load_book_detail],
 )
 app.add_page(
     club_feed,
@@ -146,7 +156,7 @@ app.add_page(
 app.add_page(
     synopsis,
     route="/book/[book_id]/synopsis",
-    on_load=[AuthState.check_auth, LibraryState.load_book_detail],
+    on_load=[AuthState.check_auth, BookDetailState.load_book_detail],
 )
 app.add_page(
     book_discussion,
@@ -161,7 +171,7 @@ app.add_page(
 app.add_page(
     lent_out_books,
     route="/lent-out-history",
-    on_load=[AuthState.check_auth, LibraryState.load_lent_out_history],
+    on_load=[AuthState.check_auth, LoanActivityState.load_lent_out_history],
 )
 app.add_page(
     lend_to_contact,

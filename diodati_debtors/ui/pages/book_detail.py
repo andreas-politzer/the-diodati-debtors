@@ -1,10 +1,5 @@
 """Book detail page — minimal version, shows what we store ourselves
 (title, author, ISBN, location as plain text, owner, loan history).
-
-Deliberately lean: once title/ISBN search-and-fetch from Open Library
-lands, the "add/enrich a book" flow changes shape substantially, and
-this page will very likely be reworked alongside it. Not worth
-polishing further right now.
 """
 
 from __future__ import annotations
@@ -15,7 +10,7 @@ from ..components.card import card
 from ..components.label import body_text, meta_text, page_title
 from ..components.shell import divider, shell
 from ..tokens import Color, Font, Type
-from ...state.library_state import LibraryState, LoanHistoryEntry
+from ...state.book_detail_state import BookDetailState, LoanHistoryEntry
 
 
 def _loan_history_row(entry: LoanHistoryEntry) -> rx.Component:
@@ -34,58 +29,58 @@ def _loan_history_row(entry: LoanHistoryEntry) -> rx.Component:
 def book_detail() -> rx.Component:
     return shell(
         rx.cond(
-            LibraryState.error_message != "",
+            BookDetailState.error_message != "",
             rx.text(
-                LibraryState.error_message,
+                BookDetailState.error_message,
                 font_family=Font.system,
                 font_size=Type.meta,
                 color=Color.warning,
             ),
         ),
         rx.cond(
-            LibraryState.detail_book,
+            BookDetailState.detail_book,
             rx.fragment(
-                page_title(LibraryState.detail_book.title),
+                page_title(BookDetailState.detail_book.title),
                 rx.cond(
-                    LibraryState.detail_book.author,
-                    body_text(LibraryState.detail_book.author),
+                    BookDetailState.detail_book.author,
+                    body_text(BookDetailState.detail_book.author),
                 ),
-                meta_text(f"Owned by {LibraryState.detail_book.owner_name}"),
-                meta_text(LibraryState.detail_book.status),
+                meta_text(f"Owned by {BookDetailState.detail_book.owner_name}"),
+                meta_text(BookDetailState.detail_book.status),
                 rx.link(
                     "☞ Reviews",
-                    href=f"/book/{LibraryState.detail_book.id}/reviews",
+                    href=f"/book/{BookDetailState.detail_book.id}/reviews",
                     display="block",
                 ),
                 rx.link(
                     "☞ Synopsis",
-                    href=f"/book/{LibraryState.detail_book.id}/synopsis",
+                    href=f"/book/{BookDetailState.detail_book.id}/synopsis",
                     display="block",
                 ),
                 rx.link(
                     "☞ Discussion",
-                    href=f"/book/{LibraryState.detail_book.id}/discussion",
+                    href=f"/book/{BookDetailState.detail_book.id}/discussion",
                     display="block",
                 ),
                 rx.cond(
-                    LibraryState.detail_book.is_own_book,
+                    BookDetailState.detail_book.is_own_book,
                     rx.link(
                         "☞ Edit",
-                        href=f"/book/{LibraryState.detail_book.id}/edit",
+                        href=f"/book/{BookDetailState.detail_book.id}/edit",
                         display="block",
                     ),
                 ),
                 rx.cond(
-                    LibraryState.detail_book.isbn,
-                    meta_text(f"ISBN: {LibraryState.detail_book.isbn}"),
+                    BookDetailState.detail_book.isbn,
+                    meta_text(f"ISBN: {BookDetailState.detail_book.isbn}"),
                 ),
                 rx.cond(
-                    LibraryState.detail_book.location,
-                    meta_text(f"Location: {LibraryState.detail_book.location}"),
+                    BookDetailState.detail_book.location,
+                    meta_text(f"Location: {BookDetailState.detail_book.location}"),
                 ),
                 divider(),
                 page_title("Loan history"),
-                rx.foreach(LibraryState.loan_history, _loan_history_row),
+                rx.foreach(BookDetailState.loan_history, _loan_history_row),
             ),
         ),
         rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),

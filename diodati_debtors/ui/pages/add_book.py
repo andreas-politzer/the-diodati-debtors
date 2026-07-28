@@ -12,7 +12,7 @@ from ..components.book_search_panel import book_search_panel
 from ..components.label import meta_text, page_title
 from ..components.shell import divider, shell
 from ..tokens import Color, Font, Type
-from ...state.library_state import LibraryState
+from ...state.book_detail_state import BookDetailState
 
 
 def add_book() -> rx.Component:
@@ -21,18 +21,18 @@ def add_book() -> rx.Component:
         rx.hstack(
             rx.vstack(
                 rx.cond(
-                    LibraryState.error_message != "",
+                    BookDetailState.error_message != "",
                     rx.text(
-                        LibraryState.error_message,
+                        BookDetailState.error_message,
                         font_family=Font.system,
                         font_size=Type.meta,
                         color=Color.warning,
                     ),
                 ),
                 rx.cond(
-                    LibraryState.info_message != "",
+                    BookDetailState.info_message != "",
                     rx.text(
-                        LibraryState.info_message,
+                        BookDetailState.info_message,
                         font_family=Font.system,
                         font_size=Type.meta,
                     ),

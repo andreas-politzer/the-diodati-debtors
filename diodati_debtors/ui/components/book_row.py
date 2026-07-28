@@ -1,8 +1,14 @@
-"""Shared book-row rendering — used by the dashboard and the Members
-detail page. Pure presentation; all workflow actions live in
-BookActionBar. Compact by design: sized to fit multiple columns in a
-responsive grid (see the library pages' grid wrapper), not a full-width
-single-column row.
+"""Shared book-row rendering — used by the dashboard (LibraryState's
+BookView) and the Members detail page (MemberLibraryState's
+MemberBookView). Both dataclasses share the same shape by design, so
+this stays a pure presentation function with no State import at all —
+duck-typed intentionally, since this is a UI component, not a
+State-to-State coupling concern.
+
+Pure presentation; all workflow actions live in BookActionBar.
+Compact by design: sized to fit multiple columns in a responsive grid
+(see the library pages' grid wrapper), not a full-width single-column
+row.
 """
 
 from __future__ import annotations
@@ -13,10 +19,9 @@ from .book_action_bar import book_action_bar
 from .card import card
 from .label import body_text, meta_text, page_title
 from ..tokens import Color, Font, Type
-from ...state.library_state import BookView
 
 
-def book_row(book: BookView) -> rx.Component:
+def book_row(book) -> rx.Component:
     return card(
         page_title(book.title, font_size="1.1rem"),
         rx.cond(book.author, body_text(book.author)),

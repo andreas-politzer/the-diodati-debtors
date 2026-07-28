@@ -1,32 +1,23 @@
-"""Library state — the adapter between Reflex UI and the service layer.
+"""Library state — browsing books: Personal/Common Library with
+search, genre/availability filters, and sorting, plus the shared user
+list and lendable-book options used elsewhere.
 
-Per the Architecture Contract: State is orchestration, not business
-logic. Service decides whether an action is allowed; State decides
-when to call the service and translates results/errors into UI-facing
-state; UI only renders state and triggers events.
-
-submit_book_form() unifies create/edit: if the submitted book_id is
-present, it updates; otherwise it creates. One shared BookForm
-component (ui/components/book_form.py) drives both modes, per Codex's
-review — no duplicated Add/Edit forms.
-
-Known, accepted gap: edit/delete are hidden from non-owners in the UI
-(book_action_bar only shows them when is_own_book), but the edit page
-itself has no additional server-side page guard beyond what
-book_service already enforces (NotAuthorizedError on submit). A
-non-owner typing the URL directly would see the form but get an error
-on submit, not be redirected away. Acceptable for this project's scale.
+Split out of the former monolithic LibraryState (see Struktur.md,
+"LibraryState aufteilen" backlog entry) — this class now owns exactly
+one responsibility: "what books can I see right now, and how are they
+arranged?" Detail/edit/delete, member libraries, and loan activity
+live in their own State classes (BookDetailState, MemberLibraryState,
+LoanActivityState).
 """
 
 from __future__ import annotations
 
-import datetime as dt
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import reflex as rx
 
 from ..core.exceptions import DiodatiError
-from ..services import book_service, contact_service, loan_service, trust_service, user_service
+from ..services import book_service, loan_service, user_service
 from .auth_state import AuthState
 from .group_state import GroupState
 
@@ -48,156 +39,25 @@ class BookView:
     has_pending_request: bool = False
 
 
-@dataclass
-class LoanHistoryEntry:
-    id: int
-    borrower_name: str
-    loan_date: str
-    due_date: str
-    return_date: str | None = None
-    is_active: bool = False
-
-
-@dataclass
-class BookDetailView:
-    id: int
-    title: str
-    author: str | None = None
-    isbn: str | None = None
-    location: str | None = None
-    genre: str | None = None
-    owner_name: str = ""
-    status: str = ""
-    owner_id: int = 0
-    is_own_book: bool = False
-    summary: str | None = None
-    summary_source: str | None = None
-
-@dataclass
-class BorrowedLoanView:
-    id: int
-    book_id: int
-    book_title: str
-    owner_name: str
-    loan_date: str
-    due_date: str
-    return_date: str | None = None
-    is_active: bool = False
-    is_overdue: bool = False
-    is_due_soon: bool = False  # due within 3 days, not yet overdue
-
-@dataclass
-class LentOutLoanView:
-    id: int
-    book_id: int
-    book_title: str
-    borrower_name: str
-    loan_date: str
-    due_date: str
-    return_date: str | None = None
-    is_active: bool = False
-    is_overdue: bool = False
-    is_due_soon: bool = False
-
-@dataclass
-class LentOutPeriod:
-    borrower_name: str
-    loan_date: str
-    due_date: str
-    return_date: str | None = None
-    is_active: bool = False
-
-
-@dataclass
-class LentOutHistoryGroup:
-    book_id: int
-    book_title: str
-    periods: list[LentOutPeriod] = field(default_factory=list)
-
-@dataclass
-class BookSearchResultView:
-    work_key: str
-    title: str
-    author: str | None = None
-    publish_year: int | None = None
-    edition_count: int | None = None
-    isbn: str | None = None
-    cover_url: str | None = None
-
-
 class LibraryState(rx.State):
     active_tab: str = "personal"  # "personal" | "common"
 
     books: list[BookView] = []
-    member_books: list[BookView] = []
-    viewing_member_name: str = ""
     users: list[dict] = []
-    detail_book: BookDetailView | None = None
-    loan_history: list[LoanHistoryEntry] = []
     error_message: str = ""
     info_message: str = ""
-    pending_delete_book_id: int = 0  # 0 == nothing pending
-    pending_clear_summary: bool = False
-    form_title: str = ""
-    form_author: str = ""
-    form_isbn: str = ""
-    form_location: str = ""
-    form_genre: str = ""
-    form_summary: str = ""
-    search_query: str = ""
-    return_condition_rating: str = ""
-    viewing_member_reliability: str = ""
-    viewing_member_book_care: str = ""
-    request_book_id: int = 0
-    request_period_choice: str = "Standard (14 days)"
-    request_custom_due_date: str = ""
-    request_note: str = ""
+
     library_search_query: str = ""
     genre_filter: str = "All"
     availability_filter: str = "All"
     sort_option: str = "Recently added"
-    loan_sort_option: str = "Due date"
-    search_results: list[BookSearchResultView] = []
-    borrowed_loans: list[BorrowedLoanView] = []
-    lent_out_loans: list[LentOutLoanView] = []
-    lent_out_history: list[LentOutHistoryGroup] = []
+
     lendable_book_options: list[str] = []
-
-    def set_form_title(self, value: str):
-        self.form_title = value
-
-    def set_return_condition_rating(self, value: str):
-        self.return_condition_rating = value
-
-    def set_form_author(self, value: str):
-        self.form_author = value
-
-    def set_form_isbn(self, value: str):
-        self.form_isbn = value
-
-    def set_form_location(self, value: str):
-        self.form_location = value
-
-    def set_form_genre(self, value: str):
-        self.form_genre = value
-    
-    def set_form_summary(self, value: str):
-        self.form_summary = value
-
-    def confirm_clear_summary(self):
-        self.pending_clear_summary = True
-
-    def cancel_clear_summary(self):
-        self.pending_clear_summary = False
 
     def set_tab(self, tab: str):
         self.active_tab = tab
-        if tab == "borrowed":
-            return LibraryState.load_borrowed_books
-        if tab == "lent_out":
-            return LibraryState.load_lent_out_books
         return LibraryState.load_books
-    
+
     def set_library_search_query(self, value: str):
         self.library_search_query = value
         return LibraryState.load_books
@@ -213,7 +73,7 @@ class LibraryState(rx.State):
     def set_sort_option(self, value: str):
         self.sort_option = value
         return LibraryState.load_books
-    
+
     def reset_book_controls(self):
         self.library_search_query = ""
         self.genre_filter = "All"
@@ -265,28 +125,21 @@ class LibraryState(rx.State):
                 )
             )
         return views
-    
+
     def _finalize_book_list(self, views: list[BookView]) -> list[BookView]:
-        """Availability filter and sorting both need the enriched
-        BookView (is_on_loan comes from _build_book_views), so this
-        runs after enrichment, not inside book_service.
-        """
         if self.availability_filter == "Available only":
             views = [v for v in views if not v.is_on_loan]
 
         if self.sort_option == "Title (A-Z)":
             views = sorted(views, key=lambda b: b.title.lower())
         elif self.sort_option == "Author (A-Z)":
-            views = sorted(views, key=lambda b: (b.author or "").lower())
+            views = sorted(views, key=lambda b: (b.author or "").split()[-1].lower() if b.author else "")
         elif self.sort_option == "Location":
             views = sorted(views, key=lambda b: (b.location or "").lower())
         elif self.sort_option == "Availability":
             views = sorted(views, key=lambda b: b.is_on_loan)
         elif self.sort_option == "Recently added":
             views = list(reversed(views))
-        # The service's natural order (created_at ascending) is
-        # oldest-first — "Recently added" must reverse it to actually
-        # show newest first, matching what the label promises.
 
         return views
 
@@ -319,29 +172,6 @@ class LibraryState(rx.State):
         views = await self._build_book_views(book_results)
         self.books = self._finalize_book_list(views)
 
-    async def load_member_library(self):
-        self.error_message = ""
-        self.member_books = []
-        self.viewing_member_name = ""
-        try:
-            member_id = int(self.member_id)
-        except (TypeError, ValueError):
-            self.error_message = "Invalid member id."
-            return
-
-        try:
-            member = user_service.get_user(member_id)
-            book_results = book_service.list_books_for_owner(member_id)
-        except DiodatiError as e:
-            self.error_message = str(e)
-            return
-
-        self.viewing_member_name = member.display_name
-        signals = trust_service.get_trust_signals(member_id)
-        self.viewing_member_reliability = signals.reliability
-        self.viewing_member_book_care = signals.book_care
-        self.member_books = await self._build_book_views(book_results)
-
     def load_users(self):
         try:
             user_results = user_service.list_users()
@@ -353,201 +183,6 @@ class LibraryState(rx.State):
     async def load_all(self):
         await self.load_books()
         self.load_users()
-
-    async def load_book_detail(self):
-        self.error_message = ""
-        self.detail_book = None
-        self.loan_history = []
-        try:
-            bid = int(self.book_id)
-        except (TypeError, ValueError):
-            self.error_message = "Invalid book id."
-            return
-
-        auth_state = await self.get_state(AuthState)
-        current_user_id = (
-            int(auth_state.current_user_id) if auth_state.is_logged_in else None
-        )
-
-        try:
-            book = book_service.get_book(bid)
-            owner = user_service.get_user(book.owner_id)
-            loans = loan_service.list_loans_for_book(bid)
-        except DiodatiError as e:
-            self.error_message = str(e)
-            return
-
-        active_loan = next((loan for loan in loans if loan.is_active), None)
-        self.detail_book = BookDetailView(
-            id=book.id,
-            title=book.title,
-            author=book.author,
-            isbn=book.isbn,
-            location=book.location,
-            genre=book.genre,
-            owner_name=owner.display_name,
-            status="on loan" if active_loan else "available",
-            owner_id=book.owner_id,
-            is_own_book=(book.owner_id == current_user_id),
-            summary=book.summary,
-            summary_source=book.summary_source,
-        )
-
-        history: list[LoanHistoryEntry] = []
-        for loan in loans:
-            if loan.contact_id is not None:
-                try:
-                    borrower_name = f"{contact_service.get_contact(loan.contact_id).name} (contact)"
-                except DiodatiError:
-                    borrower_name = "Unknown contact"
-            else:
-                try:
-                    borrower_name = user_service.get_user(loan.borrower_id).display_name
-                except DiodatiError:
-                    borrower_name = "Unknown"
-            history.append(
-                LoanHistoryEntry(
-                    id=loan.id,
-                    borrower_name=borrower_name,
-                    loan_date=loan.loan_date.isoformat(),
-                    due_date=loan.due_date.isoformat(),
-                    return_date=loan.return_date.isoformat() if loan.return_date else None,
-                    is_active=loan.is_active,
-                )
-            )
-        self.loan_history = history
-        self._populate_form_from_detail()
-
-    async def submit_summary_manual(self, form_data: dict):
-        self.error_message = ""
-        self.info_message = ""
-        auth_state = await self.get_state(AuthState)
-        try:
-            book_service.set_summary(
-                int(self.book_id),
-                owner_id=int(auth_state.current_user_id),
-                summary=form_data.get("summary", ""),
-            )
-        except DiodatiError as e:
-            self.error_message = str(e)
-        else:
-            self.info_message = "Summary saved."
-            await self.load_book_detail()
-
-    async def fetch_summary_open_library(self):
-        self.error_message = ""
-        self.info_message = ""
-        auth_state = await self.get_state(AuthState)
-        try:
-            book_service.fetch_summary_from_open_library(
-                int(self.book_id), owner_id=int(auth_state.current_user_id)
-            )
-        except DiodatiError as e:
-            self.error_message = str(e)
-        else:
-            self.info_message = "Summary fetched from Open Library."
-            await self.load_book_detail()
-
-    async def generate_summary_ai(self):
-        self.error_message = ""
-        self.info_message = ""
-        auth_state = await self.get_state(AuthState)
-        try:
-            book_service.generate_summary_with_ai(
-                int(self.book_id), owner_id=int(auth_state.current_user_id)
-            )
-        except DiodatiError as e:
-            self.error_message = str(e)
-        else:
-            self.info_message = "Summary generated."
-            await self.load_book_detail()
-
-    async def clear_summary(self):
-        self.error_message = ""
-        self.info_message = ""
-        auth_state = await self.get_state(AuthState)
-        try:
-            book_service.clear_summary(
-                int(self.book_id), owner_id=int(auth_state.current_user_id)
-            )
-        except DiodatiError as e:
-            self.error_message = str(e)
-        else:
-            self.info_message = "Summary cleared."
-            self.pending_clear_summary = False
-            await self.load_book_detail()
-
-    def _sort_loan_views(self, views: list):
-        """Shared sorting for BorrowedLoanView/LentOutLoanView — both
-        have due_date/loan_date/book_title as ISO strings, and either
-        owner_name (Borrowed) or borrower_name (Lent-Out).
-        """
-        if not views:
-            return views
-
-        if self.loan_sort_option == "Loan date":
-            return sorted(views, key=lambda v: v.loan_date)
-        if self.loan_sort_option == "Book title":
-            return sorted(views, key=lambda v: v.book_title.lower())
-        if self.loan_sort_option == "Person":
-            name_attr = "owner_name" if hasattr(views[0], "owner_name") else "borrower_name"
-            return sorted(views, key=lambda v: getattr(v, name_attr).lower())
-        # "Due date" is the default.
-        return sorted(views, key=lambda v: v.due_date)
-
-    async def load_borrowed_books(self):
-        """Populate 'My Borrowed Books' — active loans (with overdue/
-        due-soon status) and full borrow history, split in the UI by
-        is_active, not by two separate queries.
-        """
-        self.error_message = ""
-        auth_state = await self.get_state(AuthState)
-        if not auth_state.is_logged_in:
-            self.borrowed_loans = []
-            return
-
-        try:
-            loans = loan_service.list_loans_for_borrower(
-                int(auth_state.current_user_id)
-            )
-        except DiodatiError as e:
-            self.error_message = str(e)
-            return
-
-        today = dt.date.today()
-        views: list[BorrowedLoanView] = []
-        for loan in loans:
-            try:
-                book = book_service.get_book(loan.book_id)
-                owner = user_service.get_user(book.owner_id)
-                book_title = book.title
-                owner_name = owner.display_name
-            except DiodatiError:
-                book_title = f"Book {loan.book_id}"
-                owner_name = "Unknown"
-
-            is_overdue = loan.is_active and loan.due_date < today
-            is_due_soon = (
-                loan.is_active
-                and not is_overdue
-                and (loan.due_date - today).days <= 3
-            )
-
-            views.append(
-                BorrowedLoanView(
-                    id=loan.id,
-                    book_id=loan.book_id,
-                    book_title=book_title,
-                    owner_name=owner_name,
-                    loan_date=loan.loan_date.isoformat(),
-                    due_date=loan.due_date.isoformat(),
-                    return_date=loan.return_date.isoformat() if loan.return_date else None,
-                    is_active=loan.is_active,
-                    is_overdue=is_overdue,
-                    is_due_soon=is_due_soon,
-                )
-            )
-        self.borrowed_loans = self._sort_loan_views(views)
 
     async def load_lendable_book_options(self):
         """Own books currently available (no active loan) — feeds the
@@ -569,365 +204,5 @@ class LibraryState(rx.State):
             f"{b.id}: {b.title}" for b in books if b.id not in active_loans
         ]
 
-    async def load_lent_out_books(self):
-        self.error_message = ""
-        auth_state = await self.get_state(AuthState)
-        if not auth_state.is_logged_in:
-            self.lent_out_loans = []
-            return
-        try:
-            loans = loan_service.list_loans_for_owner(int(auth_state.current_user_id))
-        except DiodatiError as e:
-            self.error_message = str(e)
-            return
 
-        today = dt.date.today()
-        views: list[LentOutLoanView] = []
-        for loan in loans:
-            if not loan.is_active:
-                continue
-            try:
-                book_title = book_service.get_book(loan.book_id).title
-            except DiodatiError:
-                book_title = f"Book {loan.book_id}"
-
-            if loan.contact_id is not None:
-                try:
-                    borrower_name = f"{contact_service.get_contact(loan.contact_id).name} (contact)"
-                except DiodatiError:
-                    borrower_name = "Unknown contact"
-            else:
-                try:
-                    borrower_name = user_service.get_user(loan.borrower_id).display_name
-                except DiodatiError:
-                    borrower_name = "Unknown"
-
-            is_overdue = loan.is_active and loan.due_date < today
-            is_due_soon = loan.is_active and not is_overdue and (loan.due_date - today).days <= 3
-
-            views.append(
-                LentOutLoanView(
-                    id=loan.id,
-                    book_id=loan.book_id,
-                    book_title=book_title,
-                    borrower_name=borrower_name,
-                    loan_date=loan.loan_date.isoformat(),
-                    due_date=loan.due_date.isoformat(),
-                    return_date=loan.return_date.isoformat() if loan.return_date else None,
-                    is_active=loan.is_active,
-                    is_overdue=is_overdue,
-                    is_due_soon=is_due_soon,
-                )
-            )
-        self.lent_out_loans = self._sort_loan_views(views)
-
-    async def load_lent_out_history(self):
-        """Grouped by book — one entry per book, with every lending
-        period underneath, not one row per loan (Andy's request: avoid
-        "Frankenstein" appearing 1000 times if it's been lent out
-        repeatedly).
-        """
-        self.error_message = ""
-        auth_state = await self.get_state(AuthState)
-        if not auth_state.is_logged_in:
-            self.lent_out_history = []
-            return
-        try:
-            loans = loan_service.list_loans_for_owner(int(auth_state.current_user_id))
-        except DiodatiError as e:
-            self.error_message = str(e)
-            return
-
-        groups_by_book: dict[int, LentOutHistoryGroup] = {}
-        for loan in loans:
-            if loan.is_active:
-                continue
-            try:
-                book_title = book_service.get_book(loan.book_id).title
-            except DiodatiError:
-                book_title = f"Book {loan.book_id}"
-
-            if loan.contact_id is not None:
-                try:
-                    borrower_name = f"{contact_service.get_contact(loan.contact_id).name} (contact)"
-                except DiodatiError:
-                    borrower_name = "Unknown contact"
-            else:
-                try:
-                    borrower_name = user_service.get_user(loan.borrower_id).display_name
-                except DiodatiError:
-                    borrower_name = "Unknown"
-
-            if loan.book_id not in groups_by_book:
-                groups_by_book[loan.book_id] = LentOutHistoryGroup(
-                    book_id=loan.book_id, book_title=book_title
-                )
-            groups_by_book[loan.book_id].periods.append(
-                LentOutPeriod(
-                    borrower_name=borrower_name,
-                    loan_date=loan.loan_date.isoformat(),
-                    due_date=loan.due_date.isoformat(),
-                    return_date=loan.return_date.isoformat() if loan.return_date else None,
-                    is_active=loan.is_active,
-                )
-            )
-        self.lent_out_history = list(groups_by_book.values())
-
-    def reset_form_fields(self):
-        """Called on entering Add Book fresh — clears any stale values
-        left over from a previous edit session.
-        """
-        self.form_title = ""
-        self.form_author = ""
-        self.form_isbn = ""
-        self.form_location = ""
-
-    def _populate_form_from_detail(self):
-        if self.detail_book is None:
-            return
-        self.form_title = self.detail_book.title
-        self.form_author = self.detail_book.author or ""
-        self.form_isbn = self.detail_book.isbn or ""
-        self.form_location = self.detail_book.location or ""
-        self.form_genre = self.detail_book.genre or ""
-        # Only prefill with the owner's own prior text — never
-        # silently offer AI/Open-Library text for "Save my own
-        # summary", which would relabel it as owner-authored on
-        # submit without the user realizing.
-        self.form_summary = (
-            self.detail_book.summary
-            if self.detail_book.summary_source == "owner"
-            else ""
-        )
-
-    def fetch_isbn_metadata(self):
-        """Look up the ISBN currently in form_isbn and prefill
-        title/author on success. Does not touch form_location — the
-        user's own note (e.g. shelf location) isn't something Open
-        Library would know anyway.
-        """
-        self.error_message = ""
-        self.info_message = ""
-        if not self.form_isbn.strip():
-            self.error_message = "Enter an ISBN first."
-            return
-        try:
-            metadata = book_service.lookup_isbn(self.form_isbn)
-        except DiodatiError as e:
-            self.error_message = str(e)
-            return
-        self.form_title = metadata.title
-        if metadata.author:
-            self.form_author = metadata.author
-        self.info_message = "Filled in from Open Library — check before saving."
-
-
-    def set_search_query(self, value: str):
-        self.search_query = value
-
-    def run_search(self):
-        """Title search — a completely separate workflow from ISBN
-        lookup. Presents candidates with cover art; never auto-selects
-        one. The user always makes the final choice.
-        """
-        self.error_message = ""
-        self.info_message = ""
-        try:
-            results = book_service.search_books(self.search_query)
-        except DiodatiError as e:
-            self.error_message = str(e)
-            self.search_results = []
-            return
-        self.search_results = [
-            BookSearchResultView(
-                work_key=r.work_key,
-                title=r.title,
-                author=r.author,
-                publish_year=r.publish_year,
-                edition_count=r.edition_count,
-                isbn=r.isbn,
-                cover_url=(
-                    f"https://covers.openlibrary.org/b/id/{r.cover_id}-M.jpg"
-                    if r.cover_id
-                    else None
-                ),
-            )
-            for r in results
-        ]
-        if not self.search_results:
-            self.info_message = "No matches found."
-
-    def select_search_result(self, work_key: str):
-        """Populate the form from the chosen candidate — same
-        form_* fields as ISBN lookup and manual typing. BookForm
-        itself never knows where the data came from.
-        """
-        match = next((r for r in self.search_results if r.work_key == work_key), None)
-        if match is None:
-            return
-        self.form_title = match.title
-        if match.author:
-            self.form_author = match.author
-        if match.isbn:
-            self.form_isbn = match.isbn
-        self.search_results = []
-        self.search_query = ""
-        self.info_message = "Filled in from Open Library search — check before saving."
-
-    def clear_search(self):
-        self.search_query = ""
-        self.search_results = []
-
-    async def request_to_borrow(self):
-        self.error_message = ""
-        self.info_message = ""
-        auth_state = await self.get_state(AuthState)
-        if not auth_state.is_logged_in:
-            self.error_message = "You must be logged in to request a book."
-            return
-
-        requested_due_date = None
-        if self.request_period_choice == "Custom" and self.request_custom_due_date:
-            try:
-                requested_due_date = dt.date.fromisoformat(self.request_custom_due_date)
-            except ValueError:
-                self.error_message = "Invalid date."
-                return
-
-        try:
-            loan_service.request_to_borrow(
-                book_id=int(self.request_book_id),
-                requester_id=int(auth_state.current_user_id),
-                requested_due_date=requested_due_date,
-                note=self.request_note or None,
-            )
-        except DiodatiError as e:
-            self.error_message = str(e)
-        else:
-            self.info_message = "Request sent — waiting for the owner's approval."
-            await self.load_books()
-
-    def open_request_dialog(self, book_id: int):
-        self.request_book_id = book_id
-        self.request_period_choice = "Standard (14 days)"
-        self.request_custom_due_date = ""
-        self.request_note = ""
-
-    def set_request_period_choice(self, value: str):
-        self.request_period_choice = value
-
-    def set_request_custom_due_date(self, value: str):
-        self.request_custom_due_date = value
-
-    def set_request_note(self, value: str):
-        self.request_note = value
-
-    async def return_book(self, book: BookView):
-        self.error_message = ""
-        self.info_message = ""
-        if not book.is_own_book:
-            self.error_message = "Only the book's owner can mark it as returned."
-            return
-        if book.active_loan_id is None:
-            self.error_message = "No active loan to return."
-            return
-
-        label_to_value = {
-            "Better than before": "better_than_before",
-            "Same condition": "same_condition",
-            "Slightly worse": "slightly_worse",
-            "Significantly worse": "significantly_worse",
-        }
-        condition = label_to_value.get(self.return_condition_rating)
-
-        try:
-            loan_service.return_loan(book.active_loan_id, condition_rating=condition)
-        except DiodatiError as e:
-            self.error_message = str(e)
-        else:
-            self.return_condition_rating = ""
-            await self.load_books()
-
-    async def submit_book_form(self, form_data: dict):
-        """Handles both Add Book and Edit Book — if form_data contains
-        a non-empty book_id, updates that book; otherwise creates a
-        new one. One shared form, one shared handler. Redirects on
-        success: create → Dashboard, edit → the book's Detail page.
-        """
-        self.error_message = ""
-        auth_state = await self.get_state(AuthState)
-        if not auth_state.is_logged_in:
-            self.error_message = "You must be logged in."
-            return
-
-        book_id_raw = form_data.get("book_id", "")
-        try:
-            if book_id_raw:
-                book_service.update_book(
-                    int(book_id_raw),
-                    owner_id=int(auth_state.current_user_id),
-                    title=form_data.get("title", ""),
-                    author=form_data.get("author", ""),
-                    isbn=form_data.get("isbn", ""),
-                    location=form_data.get("location", ""),
-                    genre=(
-                        None
-                        if form_data.get("genre", "") in ("", "—")
-                        else form_data.get("genre")
-                    ),
-                )
-                self.info_message = "Book updated."
-            else:
-                book_service.create_book(
-                    owner_id=int(auth_state.current_user_id),
-                    title=form_data.get("title", ""),
-                    author=form_data.get("author", ""),
-                    isbn=form_data.get("isbn", ""),
-                    location=form_data.get("location", ""),
-                    genre=(
-                        None
-                        if form_data.get("genre", "") in ("", "—")
-                        else form_data.get("genre")
-                    ),
-                )
-                self.info_message = "Book added."
-        except DiodatiError as e:
-            self.error_message = str(e)
-            return
-
-        await self.load_books()
-        if book_id_raw:
-            return rx.redirect(f"/book/{book_id_raw}")
-        return rx.redirect("/dashboard")
-
-    def confirm_delete(self, book_id: int):
-        self.pending_delete_book_id = int(book_id)
-
-    def cancel_delete(self):
-        self.pending_delete_book_id = 0
-
-    def set_loan_sort_option(self, value: str):
-        self.loan_sort_option = value
-        self.borrowed_loans = self._sort_loan_views(self.borrowed_loans)
-        self.lent_out_loans = self._sort_loan_views(self.lent_out_loans)
-
-    async def delete_book(self, book_id: int):
-        self.error_message = ""
-        self.info_message = ""
-        auth_state = await self.get_state(AuthState)
-        if not auth_state.is_logged_in:
-            self.error_message = "You must be logged in."
-            return
-        try:
-            book_service.delete_book(
-                int(book_id), owner_id=int(auth_state.current_user_id)
-            )
-        except DiodatiError as e:
-            self.error_message = str(e)
-            return
-        self.pending_delete_book_id = 0
-        await self.load_books()
-        return rx.redirect("/dashboard")
-
-
-__all__ = ["LibraryState", "BookView", "LoanHistoryEntry", "BookDetailView", "BorrowedLoanView"]
+__all__ = ["LibraryState", "BookView"]

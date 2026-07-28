@@ -17,7 +17,8 @@ from ..components.shell import divider, shell
 from ..tokens import Border, Color, Font, Radius, Space, Type
 from ...state.auth_state import AuthState
 from ...state.group_state import GroupState
-from ...state.library_state import BorrowedLoanView, LibraryState
+from ...state.library_state import LibraryState
+from ...state.loan_activity_state import BorrowedLoanView, LoanActivityState
 from ...state.organize_state import OrganizeState
 from ...models.enums import BookGenre
 
@@ -58,6 +59,7 @@ def _club_switcher() -> rx.Component:
         margin_bottom="1rem",
     )
 
+
 def _book_controls() -> rx.Component:
     return rx.flex(
         rx.vstack(
@@ -70,12 +72,12 @@ def _book_controls() -> rx.Component:
                 font_size=Type.meta,
             ),
             rx.cond(
-            (LibraryState.library_search_query != "")
-            | (LibraryState.genre_filter != "All")
-            | (LibraryState.availability_filter != "All")
-            | (LibraryState.sort_option != "Recently added"),
-            rx.link("✕ Clear filters", on_click=LibraryState.reset_book_controls, cursor="pointer"),
-        ),
+                (LibraryState.library_search_query != "")
+                | (LibraryState.genre_filter != "All")
+                | (LibraryState.availability_filter != "All")
+                | (LibraryState.sort_option != "Recently added"),
+                rx.link("✕ Clear filters", on_click=LibraryState.reset_book_controls, cursor="pointer"),
+            ),
             spacing="1",
         ),
         rx.vstack(
@@ -118,11 +120,6 @@ def _book_controls() -> rx.Component:
 
 
 def _loan_row(loan: BorrowedLoanView) -> rx.Component:
-    """One row in My Borrowed Books — Vanitas motifs per the Design
-    Contract: skull for overdue, hourglass for due-soon, no icon at
-    all when everything's fine (deliberate restraint over a third,
-    invented symbol).
-    """
     return card(
         page_title(loan.book_title, font_size="1.1rem"),
         meta_text(f"Owned by {loan.owner_name}"),
@@ -136,6 +133,7 @@ def _loan_row(loan: BorrowedLoanView) -> rx.Component:
         rx.link("☞ View details", href=f"/book/{loan.book_id}", margin_top="0.5rem", display="block"),
         margin_bottom="1rem",
     )
+
 
 def _lent_out_row(loan) -> rx.Component:
     return card(
@@ -200,7 +198,6 @@ def dashboard() -> rx.Component:
             align="start",
             margin_bottom="1.5rem",
         ),
-        
         rx.cond(
             LibraryState.error_message != "",
             rx.text(
@@ -213,6 +210,19 @@ def dashboard() -> rx.Component:
         rx.cond(
             LibraryState.info_message != "",
             meta_text(LibraryState.info_message),
+        ),
+        rx.cond(
+            LoanActivityState.error_message != "",
+            rx.text(
+                LoanActivityState.error_message,
+                font_family=Font.system,
+                font_size=Type.meta,
+                color=Color.warning,
+            ),
+        ),
+        rx.cond(
+            LoanActivityState.info_message != "",
+            meta_text(LoanActivityState.info_message),
         ),
         rx.hstack(
             _tab_button("Personal Library", "personal"),
@@ -235,8 +245,8 @@ def dashboard() -> rx.Component:
                     meta_text("Sort"),
                     rx.select(
                         ["Due date", "Loan date", "Book title", "Person"],
-                        value=LibraryState.loan_sort_option,
-                        on_change=LibraryState.set_loan_sort_option,
+                        value=LoanActivityState.loan_sort_option,
+                        on_change=LoanActivityState.set_loan_sort_option,
                         font_family=Font.system,
                         font_size=Type.meta,
                     ),
@@ -244,10 +254,10 @@ def dashboard() -> rx.Component:
                     margin_bottom="1rem",
                 ),
                 rx.cond(
-                    LibraryState.lent_out_loans.length() > 0,
+                    LoanActivityState.lent_out_loans.length() > 0,
                     rx.grid(
                         rx.foreach(
-                            LibraryState.lent_out_loans,
+                            LoanActivityState.lent_out_loans,
                             lambda loan: rx.cond(loan.is_active, _lent_out_row(loan), rx.fragment()),
                         ),
                         columns="repeat(auto-fill, minmax(220px, 1fr))",
@@ -271,8 +281,8 @@ def dashboard() -> rx.Component:
                         meta_text("Sort"),
                         rx.select(
                             ["Due date", "Loan date", "Book title", "Person"],
-                            value=LibraryState.loan_sort_option,
-                            on_change=LibraryState.set_loan_sort_option,
+                            value=LoanActivityState.loan_sort_option,
+                            on_change=LoanActivityState.set_loan_sort_option,
                             font_family=Font.system,
                             font_size=Type.meta,
                         ),
@@ -280,10 +290,10 @@ def dashboard() -> rx.Component:
                         margin_bottom="1rem",
                     ),
                     rx.cond(
-                        LibraryState.borrowed_loans.length() > 0,
+                        LoanActivityState.borrowed_loans.length() > 0,
                         rx.grid(
                             rx.foreach(
-                                LibraryState.borrowed_loans,
+                                LoanActivityState.borrowed_loans,
                                 lambda loan: rx.cond(loan.is_active, _loan_row(loan), rx.fragment()),
                             ),
                             columns="repeat(auto-fill, minmax(220px, 1fr))",
@@ -296,7 +306,7 @@ def dashboard() -> rx.Component:
                     page_title("Borrow History"),
                     rx.grid(
                         rx.foreach(
-                            LibraryState.borrowed_loans,
+                            LoanActivityState.borrowed_loans,
                             lambda loan: rx.cond(loan.is_active == False, _loan_row(loan), rx.fragment()),
                         ),
                         columns="repeat(auto-fill, minmax(220px, 1fr))",

@@ -151,7 +151,7 @@ for email addresses, clubs, and assigned roles).
 - `models/` — SQLAlchemy entities only; no business logic
 - `services/` — business logic organized by bounded context (`auth_service`, `user_service`, `book_service`, `loan_service`, `group_service`, `contact_service`, `post_service`, `comment_service`, `review_service`, `trust_service`, `librarian_service`, ...)
 - External integrations live in `services/external/` as thin API clients (Open Library, Google Gemini). They contain no business logic and are responsible only for communicating with third-party services.
-- `state/` — the only layer connecting Reflex UI and services, split by bounded context (`AuthState`, `GroupState`, `LibraryState`, `OrganizeState`, `PostState`, `ReviewState`, `ContactState`, `LibrarianState`)
+- `state/` — the only layer connecting Reflex UI and services, split by bounded context (`AuthState`, `GroupState`, `LibraryState`, `BookDetailState`, `MemberLibraryState`, `LoanActivityState`, `OrganizeState`, `PostState`, `ReviewState`, `ContactState`, `LibrarianState`), 
 - `ui/` — presentation only; imports state, never services or models directly; reusable components shared across pages
 
 Layering is a hard constraint.

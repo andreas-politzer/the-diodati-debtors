@@ -1,6 +1,6 @@
 """My Borrowed Books page — Currently Borrowed and Borrow History as
 two sections over the same data, split by is_active (not two separate
-queries — see LibraryState.load_borrowed_books).
+queries — see LoanActivityState.load_borrowed_books).
 
 Vanitas motifs, per the Design Contract: a skull for overdue loans, an
 hourglass for loans due within 3 days — historically paired symbols
@@ -15,7 +15,7 @@ import reflex as rx
 from ..components.card import card
 from ..components.label import body_text, meta_text, page_title
 from ..components.shell import divider, shell
-from ...state.library_state import BorrowedLoanView, LibraryState
+from ...state.loan_activity_state import BorrowedLoanView, LoanActivityState
 
 
 def _loan_row(loan: BorrowedLoanView) -> rx.Component:
@@ -41,22 +41,21 @@ def _loan_row(loan: BorrowedLoanView) -> rx.Component:
 
 
 def borrowed_books() -> rx.Component:
-    active_loans = LibraryState.borrowed_loans  # filtered below in each cond
     return shell(
         page_title("My Borrowed Books"),
         rx.cond(
-            LibraryState.error_message != "",
+            LoanActivityState.error_message != "",
             rx.text(
-                LibraryState.error_message,
+                LoanActivityState.error_message,
                 font_family="inherit",
             ),
         ),
         page_title("Currently Borrowed"),
         rx.cond(
-            LibraryState.borrowed_loans.length() > 0,
+            LoanActivityState.borrowed_loans.length() > 0,
             rx.fragment(
                 rx.foreach(
-                    LibraryState.borrowed_loans,
+                    LoanActivityState.borrowed_loans,
                     lambda loan: rx.cond(loan.is_active, _loan_row(loan), rx.fragment()),
                 )
             ),
@@ -65,7 +64,7 @@ def borrowed_books() -> rx.Component:
         divider(),
         page_title("Borrow History"),
         rx.foreach(
-            LibraryState.borrowed_loans,
+            LoanActivityState.borrowed_loans,
             lambda loan: rx.cond(~loan.is_active, _loan_row(loan), rx.fragment()),
         ),
         rx.link(

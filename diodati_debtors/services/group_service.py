@@ -57,6 +57,7 @@ class JoinRequestResult:
     requested_at: dt.datetime
     reviewed_at: dt.datetime | None
     reviewed_by: int | None
+    response_message: str | None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -77,6 +78,7 @@ def _to_join_request_result(request: JoinRequest) -> JoinRequestResult:
         requested_at=request.requested_at,
         reviewed_at=request.reviewed_at,
         reviewed_by=request.reviewed_by,
+        response_message=request.response_message,
     )
 
 
@@ -217,7 +219,9 @@ def _ensure_can_review(session, group_id: int, reviewer_id: int) -> None:
         )
 
 
-def approve_join_request(request_id: int, reviewer_id: int) -> JoinRequestResult:
+def approve_join_request(
+    request_id: int, reviewer_id: int, response_message: str | None = None
+) -> JoinRequestResult:
     """Approve a pending join request, creating the resulting
     GroupMembership. The request row itself is never deleted —
     immutable history, same as Loan/LoanRequest.
@@ -261,6 +265,7 @@ def approve_join_request(request_id: int, reviewer_id: int) -> JoinRequestResult
         request.status = RequestStatus.APPROVED
         request.reviewed_at = utcnow()
         request.reviewed_by = reviewer_id
+        request.response_message = blank_to_none(response_message)
         session.add(
             GroupMembership(
                 user_id=request.user_id,
@@ -287,7 +292,9 @@ def approve_join_request(request_id: int, reviewer_id: int) -> JoinRequestResult
         return _to_join_request_result(request)
 
 
-def decline_join_request(request_id: int, reviewer_id: int) -> JoinRequestResult:
+def decline_join_request(
+    request_id: int, reviewer_id: int, response_message: str | None = None
+) -> JoinRequestResult:
     """Decline a pending join request. No membership is created.
 
     Raises:
@@ -310,8 +317,22 @@ def decline_join_request(request_id: int, reviewer_id: int) -> JoinRequestResult
         request.status = RequestStatus.DECLINED
         request.reviewed_at = utcnow()
         request.reviewed_by = reviewer_id
+        request.response_message = blank_to_none(response_message)
         session.flush()
         return _to_join_request_result(request)
+    
+def list_join_requests_for_requester(user_id: int) -> list[JoinRequestResult]:
+    """All join requests this user has sent, any status — feeds "Your
+    Requests" in Organize, mirroring the same pattern used for loan
+    requests (list_loan_requests_for_requester).
+    """
+    with get_session() as session:
+        requests = session.scalars(
+            select(JoinRequest)
+            .where(JoinRequest.user_id == user_id)
+            .order_by(JoinRequest.requested_at.desc())
+        ).all()
+        return [_to_join_request_result(r) for r in requests]
     
 def list_pending_join_requests_for_founder(founder_id: int) -> list[JoinRequestResult]:
     """All pending join requests across every group this user founded —
@@ -418,4 +439,5 @@ __all__ = [
     "list_members",
     "update_group_description",
     "get_visible_owner_ids",
+    "list_join_requests_for_requester",
 ]

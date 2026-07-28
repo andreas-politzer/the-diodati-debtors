@@ -311,6 +311,30 @@ class LoanActivityState(rx.State):
         else:
             self.return_condition_rating = ""
 
+    async def return_lent_out_book(self, loan_id: int):
+        """Simpler than return_book() — here we already know the
+        exact Loan ID directly (LentOutLoanView.id), no need to go
+        through the generic book-object duck-typing path.
+        """
+        self.error_message = ""
+        self.info_message = ""
+
+        label_to_value = {
+            "Better than before": "better_than_before",
+            "Same condition": "same_condition",
+            "Slightly worse": "slightly_worse",
+            "Significantly worse": "significantly_worse",
+        }
+        condition = label_to_value.get(self.return_condition_rating)
+
+        try:
+            loan_service.return_loan(loan_id, condition_rating=condition)
+        except DiodatiError as e:
+            self.error_message = str(e)
+        else:
+            self.return_condition_rating = ""
+            await self.load_lent_out_books()
+
 
 __all__ = [
     "LoanActivityState",

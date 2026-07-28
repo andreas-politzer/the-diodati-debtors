@@ -14,7 +14,7 @@ import datetime as dt
 from ..core.exceptions import DiodatiError
 from ..services import contact_service, trust_service
 from .auth_state import AuthState
-
+from .library_state import LibraryState
 
 @dataclass
 class ContactView:
@@ -147,7 +147,9 @@ class ContactState(rx.State):
         auth_state = await self.get_state(AuthState)
 
         try:
-            book_id = int(form_data.get("book_id", "").split(":", 1)[0].strip())
+            library_state = await self.get_state(LibraryState)
+            position = int(form_data.get("book_id", "").split(":", 1)[0].strip())
+            book_id = library_state.lendable_book_ids[position - 1]
             contact_id = int(form_data.get("contact_id", "").split(":", 1)[0].strip())
         except (ValueError, IndexError, AttributeError):
             self.error_message = "Select a book and a contact first."

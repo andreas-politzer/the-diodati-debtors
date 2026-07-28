@@ -14,6 +14,7 @@ from ..components.book_row import book_row
 from ..components.card import card
 from ..components.label import body_text, meta_text, page_title
 from ..components.shell import divider, shell
+from ..components.button import primary_button
 from ..tokens import Border, Color, Font, Radius, Space, Type
 from ...state.auth_state import AuthState
 from ...state.group_state import GroupState
@@ -146,6 +147,31 @@ def _lent_out_row(loan) -> rx.Component:
             rx.cond(loan.is_due_soon, rx.text("⏳ Due soon"), rx.fragment()),
         ),
         rx.link("☞ View details", href=f"/book/{loan.book_id}", margin_top="0.5rem", display="block"),
+        rx.dialog.root(
+            rx.dialog.trigger(primary_button("Mark returned", margin_top="0.5rem")),
+            rx.dialog.content(
+                rx.dialog.title("Mark as returned"),
+                rx.vstack(
+                    rx.text("How was the book's condition?"),
+                    rx.select(
+                        ["Skip rating", "Better than before", "Same condition", "Slightly worse", "Significantly worse"],
+                        default_value="Skip rating",
+                        on_change=LoanActivityState.set_return_condition_rating,
+                    ),
+                    rx.hstack(
+                        rx.dialog.close(
+                            primary_button(
+                                "Confirm return",
+                                on_click=lambda: LoanActivityState.return_lent_out_book(loan.id),
+                            )
+                        ),
+                        rx.dialog.close(primary_button("Cancel", type="button")),
+                        spacing="2",
+                    ),
+                    spacing="3",
+                ),
+            ),
+        ),
         margin_bottom="1rem",
     )
 

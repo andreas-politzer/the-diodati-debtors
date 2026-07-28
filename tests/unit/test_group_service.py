@@ -189,6 +189,47 @@ def test_update_group_description_normalizes_blank_to_none(db):
 
     assert result.description is None
 
+def test_approve_join_request_stores_response_message(db):
+    founder_id = _make_user(db, "founder_response1@example.com")
+    requester_id = _make_user(db, "requester_response1@example.com")
+    group = group_service.create_group(founder_id=founder_id, name="Some Club")
+    request = group_service.request_to_join(user_id=requester_id, group_id=group.id)
+
+    result = group_service.approve_join_request(
+        request.id, reviewer_id=founder_id, response_message="Welcome aboard!"
+    )
+
+    assert result.response_message == "Welcome aboard!"
+
+
+def test_decline_join_request_stores_response_message(db):
+    founder_id = _make_user(db, "founder_response2@example.com")
+    requester_id = _make_user(db, "requester_response2@example.com")
+    group = group_service.create_group(founder_id=founder_id, name="Crowded Club")
+    request = group_service.request_to_join(user_id=requester_id, group_id=group.id)
+
+    result = group_service.decline_join_request(
+        request.id, reviewer_id=founder_id,
+        response_message="Sorry, we're already too crowded. Please understand why I've had to decline.",
+    )
+
+    assert "too crowded" in result.response_message
+
+
+def test_list_join_requests_for_requester_returns_all_statuses(db):
+    founder_id = _make_user(db, "founder_response3@example.com")
+    requester_id = _make_user(db, "requester_response3@example.com")
+    group_a = group_service.create_group(founder_id=founder_id, name="Club A")
+    group_b = group_service.create_group(founder_id=founder_id, name="Club B")
+
+    request_a = group_service.request_to_join(user_id=requester_id, group_id=group_a.id)
+    request_b = group_service.request_to_join(user_id=requester_id, group_id=group_b.id)
+    group_service.decline_join_request(request_b.id, reviewer_id=founder_id)
+
+    results = group_service.list_join_requests_for_requester(requester_id)
+
+    assert {r.id for r in results} == {request_a.id, request_b.id}
+
 
 def test_group_service_has_no_reflex_dependency():
     with open(group_service.__file__, encoding="utf-8") as f:

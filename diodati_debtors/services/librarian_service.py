@@ -220,8 +220,15 @@ def get_external_recommendation(query: str) -> ExternalRecommendation | None:
     list_prompt = (
         f"Someone is looking for a book matching this description: "
         f'"{query}". Suggest up to three real, existing books that '
-        f"match, ranked best first. Reply with one book per line, "
-        f"nothing else, in exactly this format:\nTitle | Author"
+        f"match, ranked best first.\n\n"
+        f"IMPORTANT: Only suggest books you are highly confident actually "
+        f"exist, with the correct author. If you are not certain a "
+        f"specific book (e.g. an obscure adaptation or edition) is real, "
+        f"do not invent one — suggest a more well-known, verifiable book "
+        f"instead, or suggest fewer than three. Never guess an author's "
+        f"name for a real title if you are unsure who actually created it.\n\n"
+        f"Reply with one book per line, nothing else, in exactly this "
+        f"format:\nTitle | Author"
     )
     try:
         raw = generate_text(list_prompt)

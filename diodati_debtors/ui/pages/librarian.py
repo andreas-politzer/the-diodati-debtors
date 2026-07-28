@@ -38,7 +38,13 @@ def _external_book_card(book: ExternalBookView) -> rx.Component:
                 href=f"https://openlibrary.org{book.work_key}",
                 is_external=True,
             ),
-            page_title(book.title),
+            rx.fragment(
+                page_title(book.title),
+                meta_text(
+                    "⚠ Not verified — the librarian's memory may be "
+                    "playing tricks; double-check before you seek it out."
+                ),
+            ),
         ),
         rx.cond(book.author != "", body_text(book.author)),
         margin_bottom="1rem",

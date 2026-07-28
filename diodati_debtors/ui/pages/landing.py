@@ -31,7 +31,7 @@ def landing() -> rx.Component:
         divider(),
         body_text(
             "In the summer of 1816, Lord Byron, Mary Shelley, Percy Shelley "
-            "and John Polidori gathered at Villa Diodati on Lake Geneva. "
+            "Claire Clairmont and John Polidori gathered at Villa Diodati on Lake Geneva. "
             "Their conversations inspired stories that would shape Gothic "
             "literature for generations."
         ),

@@ -53,6 +53,7 @@ class LibraryState(rx.State):
     sort_option: str = "Recently added"
 
     lendable_book_options: list[str] = []
+    lendable_book_ids: list[int] = []
 
     def set_tab(self, tab: str):
         self.active_tab = tab
@@ -184,13 +185,20 @@ class LibraryState(rx.State):
         await self.load_books()
         self.load_users()
 
+    lendable_book_ids: list[int] = []
+
     async def load_lendable_book_options(self):
         """Own books currently available (no active loan) — feeds the
-        book picker on the Lend-to-Contact page.
+        book picker on the Lend-to-Contact page. Displays a clean,
+        sequential position number (1, 2, 3...) instead of the raw
+        database ID (which can jump around after imports/deletions) —
+        lendable_book_ids is the parallel, same-order lookup back to
+        the real ID.
         """
         auth_state = await self.get_state(AuthState)
         if not auth_state.is_logged_in:
             self.lendable_book_options = []
+            self.lendable_book_ids = []
             return
         try:
             books = book_service.list_books_for_owner(int(auth_state.current_user_id))
@@ -200,9 +208,10 @@ class LibraryState(rx.State):
 
         book_ids = [b.id for b in books]
         active_loans = loan_service.get_active_loans_for_books(book_ids)
-        self.lendable_book_options = [
-            f"{b.id}: {b.title}" for b in books if b.id not in active_loans
-        ]
+        available = [b for b in books if b.id not in active_loans]
+
+        self.lendable_book_ids = [b.id for b in available]
+        self.lendable_book_options = [f"{i + 1}: {b.title}" for i, b in enumerate(available)]
 
 
 __all__ = ["LibraryState", "BookView"]

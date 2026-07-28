@@ -1,6 +1,7 @@
 """Organize state — the central inbox for pending decisions the
 current user must act on: join requests for clubs they founded, loan
-requests for books they own.
+requests for books they own, plus their own sent requests once decided
+(shown as a prominent, dismissible notification until acknowledged).
 
 Per the design notes (project vault): intentionally generic, thinks
 in terms of "pending decisions", not "club management" / "book
@@ -26,6 +27,7 @@ class JoinRequestView:
     group_name: str
     requested_at: str
 
+
 @dataclass
 class LoanRequestView:
     id: int
@@ -37,6 +39,7 @@ class LoanRequestView:
     requested_due_date: str | None = None
     note: str | None = None
 
+
 @dataclass
 class SentLoanRequestView:
     id: int
@@ -44,6 +47,8 @@ class SentLoanRequestView:
     status: str
     requested_at: str
     response_message: str | None = None
+    response_read: bool = False
+
 
 @dataclass
 class SentJoinRequestView:
@@ -52,6 +57,7 @@ class SentJoinRequestView:
     status: str
     requested_at: str
     response_message: str | None = None
+    response_read: bool = False
 
 
 class OrganizeState(rx.State):
@@ -122,7 +128,6 @@ class OrganizeState(rx.State):
             )
         self.loan_requests = loan_views
         await self.load_sent_requests()
-        await self.load_sent_requests()
         await self.load_sent_join_requests()
 
     async def approve_join(self, request_id: int):
@@ -141,11 +146,7 @@ class OrganizeState(rx.State):
             self.error_message = str(e)
         else:
             if matching_request:
-                self.info_message = (
-                    f"Approved {matching_request.requester_name}'s request to join "
-                    f"\"{matching_request.group_name}\"."
-                    + (f" Your reply: \"{self.response_message_draft}\"" if self.response_message_draft else "")
-                )
+                self.info_message = f"Approved {matching_request.requester_name}'s request to join \"{matching_request.group_name}\"."
             else:
                 self.info_message = "Join request approved."
             self.pending_response_request_id = 0
@@ -167,11 +168,7 @@ class OrganizeState(rx.State):
             self.error_message = str(e)
         else:
             if matching_request:
-                self.info_message = (
-                    f"Declined {matching_request.requester_name}'s request to join "
-                    f"\"{matching_request.group_name}\"."
-                    + (f" Your reply: \"{self.response_message_draft}\"" if self.response_message_draft else "")
-                )
+                self.info_message = f"Declined {matching_request.requester_name}'s request to join \"{matching_request.group_name}\"."
             else:
                 self.info_message = "Join request declined."
             self.pending_response_request_id = 0
@@ -193,11 +190,7 @@ class OrganizeState(rx.State):
             self.error_message = str(e)
         else:
             if matching_request:
-                self.info_message = (
-                    f"Approved {matching_request.requester_name}'s request for "
-                    f"\"{matching_request.book_title}\"."
-                    + (f" Your reply: \"{self.response_message_draft}\"" if self.response_message_draft else "")
-                )
+                self.info_message = f"Approved {matching_request.requester_name}'s request for \"{matching_request.book_title}\"."
             else:
                 self.info_message = "Loan request approved."
             self.pending_response_request_id = 0
@@ -219,11 +212,7 @@ class OrganizeState(rx.State):
             self.error_message = str(e)
         else:
             if matching_request:
-                self.info_message = (
-                    f"Declined {matching_request.requester_name}'s request for "
-                    f"\"{matching_request.book_title}\"."
-                    + (f" Your reply: \"{self.response_message_draft}\"" if self.response_message_draft else "")
-                )
+                self.info_message = f"Declined {matching_request.requester_name}'s request for \"{matching_request.book_title}\"."
             else:
                 self.info_message = "Loan request declined."
             self.pending_response_request_id = 0
@@ -240,9 +229,10 @@ class OrganizeState(rx.State):
         self.response_message_draft = value
 
     async def load_pending_count(self):
-        """Lightweight — just the count, no name/trust enrichment.
-        Used by the Dashboard nav badge, separate from load_all()
-        (which does the full Organize page's enrichment)."""
+        """Both "decisions I need to make" (as owner/founder) and
+        "responses to my own requests I haven't acknowledged yet" —
+        one combined number next to "Organize" in the nav.
+        """
         auth_state = await self.get_state(AuthState)
         if not auth_state.is_logged_in:
             self.pending_count = 0
@@ -251,10 +241,17 @@ class OrganizeState(rx.State):
         try:
             join_count = len(group_service.list_pending_join_requests_for_founder(user_id))
             loan_count = len(loan_service.list_pending_loan_requests_for_owner(user_id))
+            sent_loan = loan_service.list_loan_requests_for_requester(user_id)
+            sent_join = group_service.list_join_requests_for_requester(user_id)
         except DiodatiError:
             self.pending_count = 0
             return
-        self.pending_count = join_count + loan_count
+        unread_count = sum(
+            1 for r in sent_loan if r.status != "pending" and not r.response_read
+        ) + sum(
+            1 for r in sent_join if r.status != "pending" and not r.response_read
+        )
+        self.pending_count = join_count + loan_count + unread_count
 
     async def load_sent_requests(self):
         auth_state = await self.get_state(AuthState)
@@ -282,6 +279,7 @@ class OrganizeState(rx.State):
                     status=r.status,
                     requested_at=r.requested_at.isoformat(),
                     response_message=r.response_message,
+                    response_read=r.response_read,
                 )
             )
         self.sent_requests = views
@@ -312,9 +310,40 @@ class OrganizeState(rx.State):
                     status=r.status,
                     requested_at=r.requested_at.isoformat(),
                     response_message=r.response_message,
+                    response_read=r.response_read,
                 )
             )
         self.sent_join_requests = views
 
+    async def dismiss_loan_response(self, request_id: int):
+        auth_state = await self.get_state(AuthState)
+        try:
+            loan_service.mark_loan_request_response_read(
+                request_id, requester_id=int(auth_state.current_user_id)
+            )
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
+        await self.load_sent_requests()
+        await self.load_pending_count()
 
-__all__ = ["OrganizeState", "JoinRequestView", "LoanRequestView", "SentLoanRequestView", "SentJoinRequestView",]
+    async def dismiss_join_response(self, request_id: int):
+        auth_state = await self.get_state(AuthState)
+        try:
+            group_service.mark_join_request_response_read(
+                request_id, requester_id=int(auth_state.current_user_id)
+            )
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
+        await self.load_sent_join_requests()
+        await self.load_pending_count()
+
+
+__all__ = [
+    "OrganizeState",
+    "JoinRequestView",
+    "LoanRequestView",
+    "SentLoanRequestView",
+    "SentJoinRequestView",
+]

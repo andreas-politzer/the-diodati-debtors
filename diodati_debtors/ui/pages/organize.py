@@ -1,9 +1,8 @@
 """Organize page — "What needs my attention?" Two sections: incoming
-requests needing a decision, and requests I've sent myself, with the
-owner's response visible once decided. Approve/Decline now open a
-small dialog for an optional response message (Domain principle: this
-is part of the request lifecycle, not a messaging system) — for both
-loan requests and join requests.
+requests needing a decision, and requests I've sent myself. Once a
+sent request has been decided, its response appears as a prominent,
+dismissible banner — not just a quiet line in a list — until the
+requester explicitly acknowledges it.
 """
 
 from __future__ import annotations
@@ -59,7 +58,6 @@ def _join_request_card(request: JoinRequestView) -> rx.Component:
             spacing="3",
             margin_top="0.5rem",
         ),
-        margin_bottom="1rem",
     )
 
 
@@ -78,6 +76,61 @@ def _loan_request_card(request: LoanRequestView) -> rx.Component:
             spacing="3",
             margin_top="0.5rem",
         ),
+    )
+
+
+def _loan_response_banner(request: SentLoanRequestView) -> rx.Component:
+    return rx.box(
+        rx.hstack(
+            rx.vstack(
+                rx.cond(
+                    request.status == "approved",
+                    page_title(f"Your request for \"{request.book_title}\" was approved", font_size="1.1rem"),
+                    page_title(f"Your request for \"{request.book_title}\" was declined", font_size="1.1rem"),
+                ),
+                rx.cond(
+                    request.response_message,
+                    body_text(f"Their reply: \"{request.response_message}\""),
+                ),
+                spacing="2",
+                align="start",
+            ),
+            warning_button("✕", on_click=lambda: OrganizeState.dismiss_loan_response(request.id), type="button"),
+            justify="between",
+            width="100%",
+            align="start",
+        ),
+        border=f"2px solid {Color.accent}",
+        padding="1rem",
+        border_radius="4px",
+        margin_bottom="1rem",
+    )
+
+
+def _join_response_banner(request: SentJoinRequestView) -> rx.Component:
+    return rx.box(
+        rx.hstack(
+            rx.vstack(
+                rx.cond(
+                    request.status == "approved",
+                    page_title(f"Your request to join \"{request.group_name}\" was approved", font_size="1.1rem"),
+                    page_title(f"Your request to join \"{request.group_name}\" was declined", font_size="1.1rem"),
+                ),
+                rx.cond(
+                    request.response_message,
+                    body_text(f"Their reply: \"{request.response_message}\""),
+                ),
+                spacing="2",
+                align="start",
+            ),
+            warning_button("✕", on_click=lambda: OrganizeState.dismiss_join_response(request.id), type="button"),
+            justify="between",
+            width="100%",
+            align="start",
+        ),
+        border=f"2px solid {Color.accent}",
+        padding="1rem",
+        border_radius="4px",
         margin_bottom="1rem",
     )
 
@@ -87,8 +140,6 @@ def _sent_request_card(request: SentLoanRequestView) -> rx.Component:
         body_text(request.book_title),
         meta_text(f"Status: {request.status}"),
         meta_text(f"Requested {request.requested_at}"),
-        rx.cond(request.response_message, meta_text(f"Owner's reply: {request.response_message}")),
-        margin_bottom="1rem",
     )
 
 
@@ -97,14 +148,18 @@ def _sent_join_request_card(request: SentJoinRequestView) -> rx.Component:
         body_text(f"Request to join {request.group_name}"),
         meta_text(f"Status: {request.status}"),
         meta_text(f"Requested {request.requested_at}"),
-        rx.cond(request.response_message, meta_text(f"Founder's reply: {request.response_message}")),
-        margin_bottom="1rem",
     )
 
 
 def organize() -> rx.Component:
     return shell(
         page_title("Organize"),
+        rx.image(src="/images/organize.jpg", width="100%", margin_bottom="0.5rem"),
+        meta_text(
+            "Bill from W. Dearden, printer, bookseller, stationer and "
+            "bookbinder — Carlton Street, Nottingham, 1830s."
+        ),
+        divider(),
         rx.cond(
             OrganizeState.error_message != "",
             rx.text(
@@ -114,9 +169,17 @@ def organize() -> rx.Component:
                 color=Color.warning,
             ),
         ),
-        rx.cond(
-            OrganizeState.info_message != "",
-            meta_text(OrganizeState.info_message),
+        rx.foreach(
+            OrganizeState.sent_requests,
+            lambda r: rx.cond(
+                (r.status != "pending") & ~r.response_read, _loan_response_banner(r), rx.fragment()
+            ),
+        ),
+        rx.foreach(
+            OrganizeState.sent_join_requests,
+            lambda r: rx.cond(
+                (r.status != "pending") & ~r.response_read, _join_response_banner(r), rx.fragment()
+            ),
         ),
         divider(),
         rx.hstack(
@@ -126,7 +189,12 @@ def organize() -> rx.Component:
         ),
         rx.cond(
             OrganizeState.join_requests.length() > 0,
-            rx.foreach(OrganizeState.join_requests, _join_request_card),
+            rx.grid(
+                rx.foreach(OrganizeState.join_requests, _join_request_card),
+                columns="repeat(auto-fill, minmax(280px, 1fr))",
+                gap="1rem",
+                width="100%",
+            ),
             body_text("No pending join requests."),
         ),
         divider(),
@@ -137,47 +205,58 @@ def organize() -> rx.Component:
         ),
         rx.cond(
             OrganizeState.loan_requests.length() > 0,
-            rx.foreach(OrganizeState.loan_requests, _loan_request_card),
+            rx.grid(
+                rx.foreach(OrganizeState.loan_requests, _loan_request_card),
+                columns="repeat(auto-fill, minmax(280px, 1fr))",
+                gap="1rem",
+                width="100%",
+            ),
             body_text("No pending loan requests."),
         ),
         divider(),
         page_title("Your Pending Requests"),
-        rx.cond(
-            OrganizeState.sent_requests.length() > 0,
+        rx.grid(
             rx.foreach(
                 OrganizeState.sent_requests,
                 lambda r: rx.cond(r.status == "pending", _sent_request_card(r), rx.fragment()),
             ),
-            body_text("No pending loan requests you've sent."),
+            columns="repeat(auto-fill, minmax(280px, 1fr))",
+            gap="1rem",
+            width="100%",
         ),
-        rx.cond(
-            OrganizeState.sent_join_requests.length() > 0,
+        rx.grid(
             rx.foreach(
                 OrganizeState.sent_join_requests,
                 lambda r: rx.cond(r.status == "pending", _sent_join_request_card(r), rx.fragment()),
             ),
-            body_text("No pending join requests you've sent."),
+            columns="repeat(auto-fill, minmax(280px, 1fr))",
+            gap="1rem",
+            width="100%",
         ),
         divider(),
         rx.el.details(
             rx.el.summary("☞ Request History", cursor="pointer"),
-            rx.foreach(
-                OrganizeState.sent_requests,
-                lambda r: rx.cond(r.status != "pending", _sent_request_card(r), rx.fragment()),
+            rx.grid(
+                rx.foreach(
+                    OrganizeState.sent_requests,
+                    lambda r: rx.cond(r.status != "pending", _sent_request_card(r), rx.fragment()),
+                ),
+                columns="repeat(auto-fill, minmax(280px, 1fr))",
+                gap="1rem",
+                width="100%",
             ),
-            rx.foreach(
-                OrganizeState.sent_join_requests,
-                lambda r: rx.cond(r.status != "pending", _sent_join_request_card(r), rx.fragment()),
+            rx.grid(
+                rx.foreach(
+                    OrganizeState.sent_join_requests,
+                    lambda r: rx.cond(r.status != "pending", _sent_join_request_card(r), rx.fragment()),
+                ),
+                columns="repeat(auto-fill, minmax(280px, 1fr))",
+                gap="1rem",
+                width="100%",
             ),
         ),
         rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
-        divider(),
-        rx.image(src="/images/organize.jpg", width="100%"),
-        meta_text(
-            "Bill from W. Dearden, printer, bookseller, stationer and "
-            "bookbinder — Carlton Street, Nottingham, 1830s."
-        ),
-        max_width="56rem",
+        max_width="72rem",
     )
 
 

@@ -56,6 +56,7 @@ class Settings:
     gemini_base_url: str = os.environ.get(
         "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
     )
+    google_books_api_key: str = os.environ.get("GOOGLE_BOOKS_API_KEY", "")
 
     @property
     def sqlalchemy_database_uri(self) -> str:

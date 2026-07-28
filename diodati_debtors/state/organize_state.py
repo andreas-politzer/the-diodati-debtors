@@ -45,11 +45,20 @@ class SentLoanRequestView:
     requested_at: str
     response_message: str | None = None
 
+@dataclass
+class SentJoinRequestView:
+    id: int
+    group_name: str
+    status: str
+    requested_at: str
+    response_message: str | None = None
+
 
 class OrganizeState(rx.State):
     join_requests: list[JoinRequestView] = []
     loan_requests: list[LoanRequestView] = []
     sent_requests: list[SentLoanRequestView] = []
+    sent_join_requests: list[SentJoinRequestView] = []
     error_message: str = ""
     info_message: str = ""
     pending_response_request_id: int = 0
@@ -113,33 +122,59 @@ class OrganizeState(rx.State):
             )
         self.loan_requests = loan_views
         await self.load_sent_requests()
+        await self.load_sent_requests()
+        await self.load_sent_join_requests()
 
     async def approve_join(self, request_id: int):
         self.error_message = ""
         self.info_message = ""
         auth_state = await self.get_state(AuthState)
+
+        matching_request = next((r for r in self.join_requests if r.id == request_id), None)
+
         try:
             group_service.approve_join_request(
-                request_id, reviewer_id=int(auth_state.current_user_id)
+                request_id, reviewer_id=int(auth_state.current_user_id),
+                response_message=self.response_message_draft or None,
             )
         except DiodatiError as e:
             self.error_message = str(e)
         else:
-            self.info_message = "Join request approved."
+            if matching_request:
+                self.info_message = (
+                    f"Approved {matching_request.requester_name}'s request to join "
+                    f"\"{matching_request.group_name}\"."
+                    + (f" Your reply: \"{self.response_message_draft}\"" if self.response_message_draft else "")
+                )
+            else:
+                self.info_message = "Join request approved."
+            self.pending_response_request_id = 0
             await self.load_all()
 
     async def decline_join(self, request_id: int):
         self.error_message = ""
         self.info_message = ""
         auth_state = await self.get_state(AuthState)
+
+        matching_request = next((r for r in self.join_requests if r.id == request_id), None)
+
         try:
             group_service.decline_join_request(
-                request_id, reviewer_id=int(auth_state.current_user_id)
+                request_id, reviewer_id=int(auth_state.current_user_id),
+                response_message=self.response_message_draft or None,
             )
         except DiodatiError as e:
             self.error_message = str(e)
         else:
-            self.info_message = "Join request declined."
+            if matching_request:
+                self.info_message = (
+                    f"Declined {matching_request.requester_name}'s request to join "
+                    f"\"{matching_request.group_name}\"."
+                    + (f" Your reply: \"{self.response_message_draft}\"" if self.response_message_draft else "")
+                )
+            else:
+                self.info_message = "Join request declined."
+            self.pending_response_request_id = 0
             await self.load_all()
 
     async def approve_loan(self, request_id: int):
@@ -251,5 +286,35 @@ class OrganizeState(rx.State):
             )
         self.sent_requests = views
 
+    async def load_sent_join_requests(self):
+        auth_state = await self.get_state(AuthState)
+        if not auth_state.is_logged_in:
+            self.sent_join_requests = []
+            return
+        try:
+            requests = group_service.list_join_requests_for_requester(
+                int(auth_state.current_user_id)
+            )
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
 
-__all__ = ["OrganizeState", "JoinRequestView", "LoanRequestView", "SentLoanRequestView"]
+        views: list[SentJoinRequestView] = []
+        for r in requests:
+            try:
+                group_name = group_service.get_group(r.group_id).name
+            except DiodatiError:
+                group_name = f"Club {r.group_id}"
+            views.append(
+                SentJoinRequestView(
+                    id=r.id,
+                    group_name=group_name,
+                    status=r.status,
+                    requested_at=r.requested_at.isoformat(),
+                    response_message=r.response_message,
+                )
+            )
+        self.sent_join_requests = views
+
+
+__all__ = ["OrganizeState", "JoinRequestView", "LoanRequestView", "SentLoanRequestView", "SentJoinRequestView",]

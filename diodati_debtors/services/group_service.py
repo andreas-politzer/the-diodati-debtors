@@ -58,6 +58,7 @@ class JoinRequestResult:
     reviewed_at: dt.datetime | None
     reviewed_by: int | None
     response_message: str | None
+    response_read: bool
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -79,6 +80,7 @@ def _to_join_request_result(request: JoinRequest) -> JoinRequestResult:
         reviewed_at=request.reviewed_at,
         reviewed_by=request.reviewed_by,
         response_message=request.response_message,
+        response_read=request.response_read,
     )
 
 
@@ -334,6 +336,27 @@ def list_join_requests_for_requester(user_id: int) -> list[JoinRequestResult]:
         ).all()
         return [_to_join_request_result(r) for r in requests]
     
+def mark_join_request_response_read(request_id: int, requester_id: int) -> JoinRequestResult:
+    """The requester acknowledges having seen the founder's response —
+    dismisses the prominent notification banner, the request then
+    moves into normal history.
+
+    Raises:
+        NotFoundError: if the request does not exist.
+        NotAuthorizedError: if requester_id isn't the request's user.
+    """
+    with get_session() as session:
+        request = session.get(JoinRequest, request_id)
+        if request is None:
+            raise NotFoundError(f"JoinRequest {request_id} does not exist.")
+        if request.user_id != requester_id:
+            raise NotAuthorizedError(
+                f"User {requester_id} is not the requester of join request {request_id}."
+            )
+        request.response_read = True
+        session.flush()
+        return _to_join_request_result(request)
+    
 def list_pending_join_requests_for_founder(founder_id: int) -> list[JoinRequestResult]:
     """All pending join requests across every group this user founded —
     feeds the Organize inbox.
@@ -440,4 +463,5 @@ __all__ = [
     "update_group_description",
     "get_visible_owner_ids",
     "list_join_requests_for_requester",
+    "mark_join_request_response_read",
 ]

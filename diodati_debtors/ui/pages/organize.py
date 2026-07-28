@@ -2,7 +2,8 @@
 requests needing a decision, and requests I've sent myself, with the
 owner's response visible once decided. Approve/Decline now open a
 small dialog for an optional response message (Domain principle: this
-is part of the request lifecycle, not a messaging system).
+is part of the request lifecycle, not a messaging system) — for both
+loan requests and join requests.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from ...state.organize_state import (
     JoinRequestView,
     LoanRequestView,
     OrganizeState,
+    SentJoinRequestView,
     SentLoanRequestView,
 )
 
@@ -52,8 +54,8 @@ def _join_request_card(request: JoinRequestView) -> rx.Component:
         meta_text(request.group_name),
         meta_text(f"Requested {request.requested_at}"),
         rx.hstack(
-            primary_button("Approve", on_click=lambda: OrganizeState.approve_join(request.id)),
-            warning_button("Decline", on_click=lambda: OrganizeState.decline_join(request.id)),
+            _response_dialog(request.id, "Approve", lambda: OrganizeState.approve_join(request.id)),
+            _response_dialog(request.id, "Decline", lambda: OrganizeState.decline_join(request.id)),
             spacing="3",
             margin_top="0.5rem",
         ),
@@ -86,6 +88,16 @@ def _sent_request_card(request: SentLoanRequestView) -> rx.Component:
         meta_text(f"Status: {request.status}"),
         meta_text(f"Requested {request.requested_at}"),
         rx.cond(request.response_message, meta_text(f"Owner's reply: {request.response_message}")),
+        margin_bottom="1rem",
+    )
+
+
+def _sent_join_request_card(request: SentJoinRequestView) -> rx.Component:
+    return card(
+        body_text(f"Request to join {request.group_name}"),
+        meta_text(f"Status: {request.status}"),
+        meta_text(f"Requested {request.requested_at}"),
+        rx.cond(request.response_message, meta_text(f"Founder's reply: {request.response_message}")),
         margin_bottom="1rem",
     )
 
@@ -136,7 +148,15 @@ def organize() -> rx.Component:
                 OrganizeState.sent_requests,
                 lambda r: rx.cond(r.status == "pending", _sent_request_card(r), rx.fragment()),
             ),
-            body_text("You haven't sent any requests."),
+            body_text("No pending loan requests you've sent."),
+        ),
+        rx.cond(
+            OrganizeState.sent_join_requests.length() > 0,
+            rx.foreach(
+                OrganizeState.sent_join_requests,
+                lambda r: rx.cond(r.status == "pending", _sent_join_request_card(r), rx.fragment()),
+            ),
+            body_text("No pending join requests you've sent."),
         ),
         divider(),
         rx.el.details(
@@ -145,9 +165,19 @@ def organize() -> rx.Component:
                 OrganizeState.sent_requests,
                 lambda r: rx.cond(r.status != "pending", _sent_request_card(r), rx.fragment()),
             ),
+            rx.foreach(
+                OrganizeState.sent_join_requests,
+                lambda r: rx.cond(r.status != "pending", _sent_join_request_card(r), rx.fragment()),
+            ),
         ),
         rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
-        max_width="40rem",
+        divider(),
+        rx.image(src="/images/organize.jpg", width="100%"),
+        meta_text(
+            "Bill from W. Dearden, printer, bookseller, stationer and "
+            "bookbinder — Carlton Street, Nottingham, 1830s."
+        ),
+        max_width="56rem",
     )
 
 

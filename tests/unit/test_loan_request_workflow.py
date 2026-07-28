@@ -240,3 +240,25 @@ def test_list_loan_requests_for_requester_returns_all_statuses(db):
     results = loan_service.list_loan_requests_for_requester(requester_id)
 
     assert {r.id for r in results} == {request_a.id, request_b.id}
+
+def test_mark_loan_request_response_read(db):
+    owner_id = _make_user(db, "owner_read1@example.com")
+    requester_id = _make_user(db, "requester_read1@example.com")
+    book_id = _make_book(db, owner_id, "Some Book")
+    request = loan_service.request_to_borrow(book_id=book_id, requester_id=requester_id)
+    loan_service.approve_loan_request(request.id, reviewer_id=owner_id, response_message="Sure!")
+
+    result = loan_service.mark_loan_request_response_read(request.id, requester_id=requester_id)
+
+    assert result.response_read is True
+
+
+def test_mark_loan_request_response_read_rejects_non_requester(db):
+    owner_id = _make_user(db, "owner_read2@example.com")
+    requester_id = _make_user(db, "requester_read2@example.com")
+    outsider_id = _make_user(db, "outsider_read1@example.com")
+    book_id = _make_book(db, owner_id, "Another Book")
+    request = loan_service.request_to_borrow(book_id=book_id, requester_id=requester_id)
+
+    with pytest.raises(NotAuthorizedError):
+        loan_service.mark_loan_request_response_read(request.id, requester_id=outsider_id)

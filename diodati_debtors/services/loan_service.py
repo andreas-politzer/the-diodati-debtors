@@ -55,6 +55,7 @@ class LoanRequestResult:
     requested_due_date: dt.date | None
     note: str | None
     response_message: str | None
+    response_read: bool
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -109,6 +110,7 @@ def _to_request_result(request: LoanRequest) -> LoanRequestResult:
         requested_due_date=request.requested_due_date,
         note=request.note,
         response_message=request.response_message,
+        response_read=request.response_read,
     )
 
 
@@ -382,6 +384,28 @@ def list_loan_requests_for_requester(requester_id: int) -> list[LoanRequestResul
             .order_by(LoanRequest.requested_at.desc())
         ).all()
         return [_to_request_result(r) for r in requests]
+    
+def mark_loan_request_response_read(request_id: int, requester_id: int) -> LoanRequestResult:
+    """The requester acknowledges having seen the owner's response —
+    dismisses the prominent notification banner, the request then
+    moves into normal history. Owner-response acknowledgment only;
+    never changes status/reviewed_at.
+
+    Raises:
+        NotFoundError: if the request does not exist.
+        NotAuthorizedError: if requester_id isn't the request's requester.
+    """
+    with get_session() as session:
+        request = session.get(LoanRequest, request_id)
+        if request is None:
+            raise NotFoundError(f"LoanRequest {request_id} does not exist.")
+        if request.requester_id != requester_id:
+            raise NotAuthorizedError(
+                f"User {requester_id} is not the requester of loan request {request_id}."
+            )
+        request.response_read = True
+        session.flush()
+        return _to_request_result(request)
 
 
 def get_pending_request_book_ids_for_requester(
@@ -572,4 +596,5 @@ __all__ = [
     "list_loans_for_borrower",
     "list_loans_for_owner",
     "list_loan_requests_for_requester",
+    "mark_loan_request_response_read",
 ]

@@ -230,6 +230,28 @@ def test_list_join_requests_for_requester_returns_all_statuses(db):
 
     assert {r.id for r in results} == {request_a.id, request_b.id}
 
+def test_mark_join_request_response_read(db):
+    founder_id = _make_user(db, "founder_read1@example.com")
+    requester_id = _make_user(db, "requester_read3@example.com")
+    group = group_service.create_group(founder_id=founder_id, name="Read Test Club")
+    request = group_service.request_to_join(user_id=requester_id, group_id=group.id)
+    group_service.approve_join_request(request.id, reviewer_id=founder_id, response_message="Welcome!")
+
+    result = group_service.mark_join_request_response_read(request.id, requester_id=requester_id)
+
+    assert result.response_read is True
+
+
+def test_mark_join_request_response_read_rejects_non_requester(db):
+    founder_id = _make_user(db, "founder_read2@example.com")
+    requester_id = _make_user(db, "requester_read4@example.com")
+    outsider_id = _make_user(db, "outsider_read2@example.com")
+    group = group_service.create_group(founder_id=founder_id, name="Another Club")
+    request = group_service.request_to_join(user_id=requester_id, group_id=group.id)
+
+    with pytest.raises(NotAuthorizedError):
+        group_service.mark_join_request_response_read(request.id, requester_id=outsider_id)
+
 
 def test_group_service_has_no_reflex_dependency():
     with open(group_service.__file__, encoding="utf-8") as f:

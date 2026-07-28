@@ -1,6 +1,8 @@
 """Welcome to Reflex! This file outlines the steps to create a basic app."""
 
 import reflex as rx
+import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 from .ui.theme import global_style, stylesheets
 from .ui.pages.style_preview import style_preview

@@ -31,21 +31,7 @@ def _external_book_card(book: ExternalBookView) -> rx.Component:
             book.cover_url != "",
             rx.image(src=book.cover_url, width="100px", margin_bottom="0.5rem"),
         ),
-        rx.cond(
-            book.work_key != "",
-            rx.link(
-                page_title(book.title),
-                href=f"https://openlibrary.org{book.work_key}",
-                is_external=True,
-            ),
-            rx.fragment(
-                page_title(book.title),
-                meta_text(
-                    "⚠ Not verified — the librarian's memory may be "
-                    "playing tricks; double-check before you seek it out."
-                ),
-            ),
-        ),
+        page_title(book.title),
         rx.cond(book.author != "", body_text(book.author)),
         margin_bottom="1rem",
     )

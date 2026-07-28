@@ -8,6 +8,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import reflex as rx
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 from ..core.exceptions import DiodatiError
 from ..services import librarian_service
@@ -60,40 +64,50 @@ class LibrarianState(rx.State):
             self.error_message = "Tell the librarian what you're looking for."
             return
 
+        logger.info("Librarian: starting ask_librarian for query=%r", self.query)
         try:
-            result = librarian_service.ask_librarian(
-                self.query, int(auth_state.current_user_id)
+            result = await asyncio.to_thread(
+                librarian_service.ask_librarian, self.query, int(auth_state.current_user_id)
             )
         except DiodatiError as e:
             self.error_message = str(e)
             return
         except Exception:
+            logger.exception("Librarian: ask_librarian failed")
             self.error_message = (
                 "The librarian is momentarily unavailable. Please try again."
             )
             return
+        logger.info("Librarian: ask_librarian finished, matches=%d", len(result.matches))
 
         if result.matches:
             self.matches = [
                 MatchView(book_id=m.book_id, title=m.title, author=m.author, similarity=m.similarity)
                 for m in result.matches
             ]
+            logger.info("Librarian: starting get_match_remark")
             try:
-                self.external_remark = librarian_service.get_match_remark(self.query, result.matches)
+                self.external_remark = await asyncio.to_thread(
+                    librarian_service.get_match_remark, self.query, result.matches
+                )
             except Exception:
+                logger.exception("Librarian: get_match_remark failed")
                 self.external_remark = ""
+            logger.info("Librarian: get_match_remark finished")
             return
 
-        # No visible match — a restricted hint and an external
-        # recommendation are not mutually exclusive (Andy's correction:
-        # "the librarian knows all books").
         if result.restricted_hint:
             self.restricted_club_name = result.restricted_hint.club_name
 
+        logger.info("Librarian: starting get_external_recommendation")
         try:
-            recommendation = librarian_service.get_external_recommendation(self.query)
+            recommendation = await asyncio.to_thread(
+                librarian_service.get_external_recommendation, self.query
+            )
         except Exception:
+            logger.exception("Librarian: get_external_recommendation failed")
             recommendation = None
+        logger.info("Librarian: get_external_recommendation finished, found=%s", recommendation is not None)
 
         if recommendation:
             self.external_remark = recommendation.remark

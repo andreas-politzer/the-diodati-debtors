@@ -28,7 +28,7 @@ def generate_text(prompt: str) -> str:
             "Content-Type": "application/json",
         },
         json={"contents": [{"parts": [{"text": prompt}]}]},
-        timeout=_TIMEOUT_SECONDS,
+        timeout=(3.0, _TIMEOUT_SECONDS),
     )
     response.raise_for_status()
     data = response.json()
@@ -60,7 +60,7 @@ def embed_text(text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> list[float]:
             "task_type": task_type,
             "output_dimensionality": 768,
         },
-        timeout=_TIMEOUT_SECONDS,
+        timeout=(3.0, _TIMEOUT_SECONDS),
     )
     response.raise_for_status()
     data = response.json()

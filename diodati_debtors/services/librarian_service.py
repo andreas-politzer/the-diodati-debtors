@@ -14,11 +14,15 @@ from __future__ import annotations
 
 import json
 import math
+import logging
+
+logger = logging.getLogger(__name__)
 from dataclasses import asdict, dataclass
 
 from sqlalchemy import select
 
 from .external.gemini_client import embed_text
+from .external import google_books_client
 from .group_service import get_visible_owner_ids
 from ..db.session import get_session
 from ..models.book import Book
@@ -199,6 +203,18 @@ def get_match_remark(query: str, matches: list[LibrarianMatch]) -> str:
         f"discovery that the book is right here, within the community's "
         f"own holdings — you may playfully reference \"the Diodati "
         f"debtors\" themselves as having it.\n\n"
+        f"CRITICAL RULES FOR METADATA ACCURACY:\n"
+        f"1. You must strictly respect the exact title and author of the "
+        f"provided matches.\n"
+        f"2. Do NOT invent formats or adaptations. If the user asked for a "
+        f"specific format (e.g., 'graphic novel', 'manga', 'audiobook', "
+        f"'movie') or a specific adaptation, and the provided matches are "
+        f"clearly just the standard original novels, you must NOT pretend "
+        f"the matches are the requested format.\n"
+        f"3. Instead, politely and wittily correct the user. Acknowledge "
+        f"what they asked for, but clearly state that the Diodati vaults "
+        f"currently only hold the original, standard text editions of "
+        f"these works.\n\n"
         f"IMPORTANT: If the subject matter is serious, tragic, painful, "
         f"or historically grave (war, genocide, atrocity, death, "
         f"suffering, or similar), let your usual wit soften into genuine "
@@ -212,74 +228,143 @@ def get_match_remark(query: str, matches: list[LibrarianMatch]) -> str:
         return f"Ah, I believe you'll find {titles_list} quite to your taste."
 
 def get_external_recommendation(query: str) -> ExternalRecommendation | None:
-    """Called whenever no visible match exists — independent of
-    whether a restricted_hint also exists, per Andy's design decision:
-    "the librarian knows all books", so a club hint and a suggestion
-    from the wider world are not mutually exclusive.
+    """Architecture (per ChatGPT's review, 28.07): a catalogue verifies
+    books, it does not answer knowledge questions. Gemini first
+    classifies the query — direct search/recommendation vs. a
+    knowledge question about books — via structured JSON, not a magic
+    string. Knowledge-question candidates are individually verified
+    against Google Books; unverifiable ones are silently dropped, never
+    shown. Direct searches go straight to Google Books with the user's
+    own words. Either way, Gemini never presents a book that Google
+    Books hasn't confirmed exists — including in its free-text remark,
+    which is explicitly forbidden from naming any book when none were
+    verified (28.07 fix: Byron was naming books in prose even when the
+    structured books list was empty).
     """
-    list_prompt = (
-        f"Someone is looking for a book matching this description: "
-        f'"{query}". Suggest up to three real, existing books that '
-        f"match, ranked best first.\n\n"
-        f"IMPORTANT: Only suggest books you are highly confident actually "
-        f"exist, with the correct author. If you are not certain a "
-        f"specific book (e.g. an obscure adaptation or edition) is real, "
-        f"do not invent one — suggest a more well-known, verifiable book "
-        f"instead, or suggest fewer than three. Never guess an author's "
-        f"name for a real title if you are unsure who actually created it.\n\n"
-        f"Reply with one book per line, nothing else, in exactly this "
-        f"format:\nTitle | Author"
+    logger.info("External: requesting classification from Gemini...")
+    classification_prompt = (
+        f'Someone asked a librarian: "{query}"\n\n'
+        f"Decide whether this is (a) a direct search or recommendation "
+        f'request (e.g. "books like Dracula", "gothic horror recommendations", '
+        f'"Thomas Mann novels") — a catalogue can search for this directly — '
+        f"or (b) a knowledge question about books "
+        f'(e.g. "are there graphic novel adaptations of X", "which novels '
+        f'were adapted into manga", "did author Y write genre Z") — a '
+        f"catalogue cannot answer this, only knowledge can.\n\n"
+        f"Reply with ONLY a JSON object, nothing else, in exactly this shape:\n\n"
+        f'For direct search: {{"query_type": "direct_search"}}\n\n'
+        f'For knowledge questions: {{"query_type": "knowledge", '
+        f'"answer": "a short, direct answer to the question in 1-2 '
+        f'sentences", "candidate_books": [{{"title": "...", "author": "..."}}]}} '
+        f"— list up to 3 real books you are aware of that support your "
+        f"answer. If you are not confident any real book exists, return an "
+        f"empty candidate_books list rather than guessing, but still give "
+        f"your best honest answer."
     )
+
     try:
-        raw = generate_text(list_prompt)
+        raw = generate_text(classification_prompt)
+        logger.info("External: classification received: %r", raw[:300])
+        classification = json.loads(_strip_json_fence(raw))
     except Exception:
-        return None
+        logger.exception("External: classification call/parse failed, defaulting to direct_search")
+        classification = {"query_type": "direct_search"}
 
-    parsed: list[tuple[str, str | None]] = []
-    for line in raw.splitlines():
-        if "|" not in line:
-            continue
-        title_part, _, author_part = line.partition("|")
-        title = title_part.strip()
-        author = author_part.strip() or None
-        if title:
-            parsed.append((title, author))
+    query_type = classification.get("query_type", "direct_search")
+    knowledge_answer = None
+    logger.info("External: query_type=%s", query_type)
 
-    if not parsed:
-        return None
+    if query_type == "knowledge":
+        knowledge_answer = (classification.get("answer") or "").strip() or None
+        books = []
+        candidates_to_check = classification.get("candidate_books", [])[:3]
+        logger.info("External: %d candidate books to verify: %r", len(candidates_to_check), candidates_to_check)
+        for i, candidate in enumerate(candidates_to_check):
+            title = (candidate.get("title") or "").strip()
+            author = (candidate.get("author") or "").strip() or None
+            if not title:
+                continue
+            logger.info("External: candidate %d/%d searching Google Books for %r by %r", i + 1, len(candidates_to_check), title, author)
+            try:
+                results = google_books_client.search_books(
+                    f"{title} {author or ''}".strip(), max_results=3
+                )
+            except Exception:
+                logger.exception("External: Google Books search failed for candidate %r", title)
+                results = []
 
-    books: list[ExternalBook] = []
-    for title, author in parsed[:3]:
+            verified_book = None
+            for res in results:
+                if title.lower() in res.title.lower() or res.title.lower() in title.lower():
+                    verified_book = res
+                    break
+
+            logger.info(
+                "External: candidate %d/%d done, raw_results=%d, verified=%s",
+                i + 1, len(candidates_to_check), len(results), bool(verified_book)
+            )
+
+            if verified_book:
+                books.append(
+                    ExternalBook(
+                        title=verified_book.title, author=verified_book.author,
+                        cover_url=verified_book.cover_url, isbn=verified_book.isbn, work_key=None,
+                    )
+                )
+        if not knowledge_answer and not books:
+            logger.info("External: no answer and no verified books, returning None")
+            return None
+    else:
+        logger.info("External: direct_search — searching Google Books with original query %r", query)
         try:
-            search_results = search_books(f"{title} {author or ''}".strip())
+            candidates = google_books_client.search_books(query, max_results=5)
         except Exception:
-            search_results = []
+            logger.exception("External: Google Books direct search failed")
+            candidates = []
+        logger.info("External: direct search returned %d candidates", len(candidates))
+        if not candidates:
+            return None
+        books = [
+            ExternalBook(
+                title=c.title, author=c.author,
+                cover_url=c.cover_url, isbn=c.isbn, work_key=None,
+            )
+            for c in candidates[:3]
+        ]
 
-        cover_url = None
-        isbn = None
-        work_key = None
-        if search_results:
-            best = search_results[0]
-            title = best.title
-            author = best.author
-            isbn = best.isbn
-            work_key = best.work_key
-            if best.cover_id:
-                cover_url = f"https://covers.openlibrary.org/b/id/{best.cover_id}-M.jpg"
+    titles_list = ", ".join(b.title for b in books) if books else ""
 
-        books.append(
-            ExternalBook(title=title, author=author, cover_url=cover_url, isbn=isbn, work_key=work_key)
+    if titles_list:
+        context_block = f"Real books found in the catalogue that support/illustrate this: {titles_list}.\n\n"
+        forbidden_block = ""
+    else:
+        context_block = "No specific supporting books were found in the catalogue.\n\n"
+        forbidden_block = (
+            "CRITICAL: No specific books were found or verified for this "
+            "query. Do NOT name, mention, or imply any specific book title "
+            "in your response, even ones you might personally know of — "
+            "only speak in general terms about the topic itself.\n\n"
         )
 
-    titles_list = ", ".join(b.title for b in books)
+    if knowledge_answer:
+        answer_block = f"Here is the factual answer to their question: {knowledge_answer}\n\n"
+    else:
+        answer_block = ""
+
+    logger.info("External: requesting Byron remark from Gemini...")
     remark_prompt = (
         f"You are Lord Byron, speaking as a witty, slightly arrogant but "
-        f'charming 19th-century English gentleman librarian. Someone asked '
-        f'for a book matching: "{query}". You want to recommend these '
-        f"book(s): {titles_list}. Write ONE short remark (2-4 sentences "
-        f"total), in character, dandyish and a touch superior but "
-        f"ultimately warm and enthusiastic, addressing the person "
-        f"informally in period style. Mention the book(s) naturally.\n\n"
+        f'charming 19th-century English gentleman librarian. Someone asked: '
+        f'"{query}".\n\n'
+        f"{answer_block}"
+        f"{context_block}"
+        f"{forbidden_block}"
+        f"Write ONE short remark (2-4 sentences total), in character, "
+        f"dandyish and a touch superior but ultimately warm and "
+        f"enthusiastic, addressing the person informally in period style. "
+        f"Convey the actual answer to their question, not just a list of "
+        f"book titles — the books are supporting evidence, not the whole "
+        f"reply. Do not mention any book other than the ones listed above.\n\n"
         f"IMPORTANT: If the subject matter is serious, tragic, painful, "
         f"or historically grave (war, genocide, atrocity, death, "
         f"suffering, or similar), let your usual wit soften into genuine "
@@ -289,10 +374,27 @@ def get_external_recommendation(query: str) -> ExternalRecommendation | None:
     )
     try:
         remark = generate_text(remark_prompt).strip()
+        logger.info("External: Byron remark received")
     except Exception:
-        remark = f"I daresay you shall find {titles_list} most diverting."
+        logger.exception("External: Byron remark call failed")
+        remark = (
+            knowledge_answer
+            or (f"I daresay you shall find {titles_list} most diverting." if titles_list else "The librarian ponders in silence.")
+        )
 
     return ExternalRecommendation(books=books, remark=remark)
+
+
+def _strip_json_fence(raw: str) -> str:
+    """Gemini sometimes wraps JSON in a markdown code fence
+    (```json ... ```) despite being asked not to — strip it
+    defensively before parsing."""
+    stripped = raw.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.split("```")[1]
+        if stripped.startswith("json"):
+            stripped = stripped[4:]
+    return stripped.strip()
 
 __all__ = [
     "LibrarianMatch", "RestrictedHint", "LibrarianResult",

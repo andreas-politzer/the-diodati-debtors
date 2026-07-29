@@ -48,6 +48,19 @@ class LibrarianState(rx.State):
     def set_query(self, value: str):
         self.query = value
 
+    @rx.var
+    def external_books_copy_text(self) -> str:
+        """Plain-text version of the external recommendations, for the
+        "Continue your search" copy block — lets the user paste it
+        into any search engine, library catalogue, or bookshop of
+        their choice, per the "no external links, stay platform-
+        independent" design decision (project vault)."""
+        lines = [
+            f"{b.title} — {b.author}" if b.author else b.title
+            for b in self.external_books
+        ]
+        return "\n".join(lines)
+
     async def ask(self):
         self.error_message = ""
         self.has_searched = True
@@ -120,6 +133,11 @@ class LibrarianState(rx.State):
                 )
                 for b in recommendation.books
             ]
+        else:
+            self.external_remark = (
+                "Pray forgive me, the couriers to our outer catalogues seem "
+                "to be caught in some manner of storm. Do try again in a moment."
+            )
 
 
 __all__ = ["LibrarianState", "MatchView", "ExternalBookView"]

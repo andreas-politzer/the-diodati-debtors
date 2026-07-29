@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import math
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 from dataclasses import asdict, dataclass
@@ -228,57 +229,79 @@ def get_match_remark(query: str, matches: list[LibrarianMatch]) -> str:
         return f"Ah, I believe you'll find {titles_list} quite to your taste."
 
 def get_external_recommendation(query: str) -> ExternalRecommendation | None:
-    """Architecture (per ChatGPT's review, 28.07): a catalogue verifies
-    books, it does not answer knowledge questions. Gemini first
-    classifies the query — direct search/recommendation vs. a
-    knowledge question about books — via structured JSON, not a magic
-    string. Knowledge-question candidates are individually verified
-    against Google Books; unverifiable ones are silently dropped, never
-    shown. Direct searches go straight to Google Books with the user's
-    own words. Either way, Gemini never presents a book that Google
-    Books hasn't confirmed exists — including in its free-text remark,
-    which is explicitly forbidden from naming any book when none were
-    verified (28.07 fix: Byron was naming books in prose even when the
-    structured books list was empty).
+    """Architecture (29.07, revised): eliminates the fragile
+    direct_search/knowledge classification, which twice misclassified
+    genuine comparison/recommendation queries as literal catalogue
+    searches. New design:
+
+    1. Fast path (no LLM call): try the raw query directly against
+       Google Books. If the top result's title is confidently
+       contained in the query itself (the user basically typed the
+       title), use it immediately — this makes exact-title searches
+       FASTER than before (was: 2 Gemini calls, now: 1).
+    2. Slow path (only for non-title-like queries): always ask Gemini
+       for real candidate books + a factual answer — no more binary
+       yes/no classification that can be wrong. Each candidate is
+       hard-verified against Google Books before being trusted.
+
+    Either way, Gemini never presents a book Google Books hasn't
+    confirmed, and never names an unverified book in its remark.
     """
-    logger.info("External: requesting classification from Gemini...")
-    classification_prompt = (
-        f'Someone asked a librarian: "{query}"\n\n'
-        f"Decide whether this is (a) a direct search or recommendation "
-        f'request (e.g. "books like Dracula", "gothic horror recommendations", '
-        f'"Thomas Mann novels") — a catalogue can search for this directly — '
-        f"or (b) a knowledge question about books "
-        f'(e.g. "are there graphic novel adaptations of X", "which novels '
-        f'were adapted into manga", "did author Y write genre Z") — a '
-        f"catalogue cannot answer this, only knowledge can.\n\n"
-        f"Reply with ONLY a JSON object, nothing else, in exactly this shape:\n\n"
-        f'For direct search: {{"query_type": "direct_search"}}\n\n'
-        f'For knowledge questions: {{"query_type": "knowledge", '
-        f'"answer": "a short, direct answer to the question in 1-2 '
-        f'sentences", "candidate_books": [{{"title": "...", "author": "..."}}]}} '
-        f"— list up to 3 real books you are aware of that support your "
-        f"answer. If you are not confident any real book exists, return an "
-        f"empty candidate_books list rather than guessing, but still give "
-        f"your best honest answer."
-    )
+    query_lower = query.strip().lower()
 
-    try:
-        raw = generate_text(classification_prompt)
-        logger.info("External: classification received: %r", raw[:300])
-        classification = json.loads(_strip_json_fence(raw))
-    except Exception:
-        logger.exception("External: classification call/parse failed, defaulting to direct_search")
-        classification = {"query_type": "direct_search"}
+    confident_hit = None
+    if len(query_lower.split()) <= 5:
+        logger.info("External: query short enough, trying fast path...")
+        try:
+            raw_candidates = google_books_client.search_books(query, max_results=3)
+        except Exception:
+            logger.exception("External: fast-path Google Books search failed")
+            raw_candidates = []
 
-    query_type = classification.get("query_type", "direct_search")
+        for c in raw_candidates:
+            clean_title = re.split(r"[:\-(]", c.title)[0].strip().lower()
+            if len(clean_title) > 3 and re.search(rf"\b{re.escape(clean_title)}\b", query_lower):
+                confident_hit = c
+                break
+    else:
+        logger.info("External: query too long for reliable fast path (>5 words), going straight to Gemini")
+
     knowledge_answer = None
-    logger.info("External: query_type=%s", query_type)
 
-    if query_type == "knowledge":
-        knowledge_answer = (classification.get("answer") or "").strip() or None
+    if confident_hit:
+        logger.info("External: fast path confident hit — %r", confident_hit.title)
+        books = [
+            ExternalBook(
+                title=confident_hit.title, author=confident_hit.author,
+                cover_url=confident_hit.cover_url, isbn=confident_hit.isbn, work_key=None,
+            )
+        ]
+    else:
+        logger.info("External: no confident fast-path hit, asking Gemini for candidates")
+        candidate_prompt = (
+            f'Someone asked a librarian: "{query}"\n\n'
+            f"Suggest up to 3 real, existing books that best answer or match "
+            f"this request. If it's a factual question, also give a short, "
+            f"direct answer.\n\n"
+            f"Reply with ONLY a JSON object, nothing else, in exactly this "
+            f'shape: {{"answer": "a short answer, or empty string if this is '
+            f'just a search/recommendation request, not a question", '
+            f'"candidate_books": [{{"title": "...", "author": "..."}}]}}. '
+            f"If you are not confident any real book exists, return an "
+            f"empty candidate_books list rather than guessing."
+        )
+        try:
+            raw = generate_text(candidate_prompt)
+            logger.info("External: candidate response received: %r", raw[:300])
+            parsed = json.loads(_strip_json_fence(raw))
+        except Exception:
+            logger.exception("External: candidate call/parse failed")
+            parsed = {"answer": "", "candidate_books": []}
+
+        knowledge_answer = (parsed.get("answer") or "").strip() or None
         books = []
-        candidates_to_check = classification.get("candidate_books", [])[:3]
-        logger.info("External: %d candidate books to verify: %r", len(candidates_to_check), candidates_to_check)
+        candidates_to_check = parsed.get("candidate_books", [])[:3]
+        logger.info("External: %d candidates to verify: %r", len(candidates_to_check), candidates_to_check)
         for i, candidate in enumerate(candidates_to_check):
             title = (candidate.get("title") or "").strip()
             author = (candidate.get("author") or "").strip() or None
@@ -287,7 +310,7 @@ def get_external_recommendation(query: str) -> ExternalRecommendation | None:
             logger.info("External: candidate %d/%d searching Google Books for %r by %r", i + 1, len(candidates_to_check), title, author)
             try:
                 results = google_books_client.search_books(
-                    f"{title} {author or ''}".strip(), max_results=3
+                    f"{title} {author or ''}".strip(), max_results=20
                 )
             except Exception:
                 logger.exception("External: Google Books search failed for candidate %r", title)
@@ -295,7 +318,15 @@ def get_external_recommendation(query: str) -> ExternalRecommendation | None:
 
             verified_book = None
             for res in results:
-                if title.lower() in res.title.lower() or res.title.lower() in title.lower():
+                title_match = title.lower() in res.title.lower() or res.title.lower() in title.lower()
+
+                author_match = True
+                if author and res.author:
+                    author_lastname = author.split()[-1].lower()
+                    if author_lastname not in res.author.lower():
+                        author_match = False
+
+                if title_match and author_match:
                     verified_book = res
                     break
 
@@ -303,7 +334,6 @@ def get_external_recommendation(query: str) -> ExternalRecommendation | None:
                 "External: candidate %d/%d done, raw_results=%d, verified=%s",
                 i + 1, len(candidates_to_check), len(results), bool(verified_book)
             )
-
             if verified_book:
                 books.append(
                     ExternalBook(
@@ -311,26 +341,10 @@ def get_external_recommendation(query: str) -> ExternalRecommendation | None:
                         cover_url=verified_book.cover_url, isbn=verified_book.isbn, work_key=None,
                     )
                 )
+
         if not knowledge_answer and not books:
             logger.info("External: no answer and no verified books, returning None")
             return None
-    else:
-        logger.info("External: direct_search — searching Google Books with original query %r", query)
-        try:
-            candidates = google_books_client.search_books(query, max_results=5)
-        except Exception:
-            logger.exception("External: Google Books direct search failed")
-            candidates = []
-        logger.info("External: direct search returned %d candidates", len(candidates))
-        if not candidates:
-            return None
-        books = [
-            ExternalBook(
-                title=c.title, author=c.author,
-                cover_url=c.cover_url, isbn=c.isbn, work_key=None,
-            )
-            for c in candidates[:3]
-        ]
 
     titles_list = ", ".join(b.title for b in books) if books else ""
 

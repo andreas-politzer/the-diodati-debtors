@@ -108,6 +108,28 @@ def librarian() -> rx.Component:
                             rx.vstack(
                                 body_text(LibrarianState.external_remark),
                                 rx.foreach(LibrarianState.external_books, _external_book_card),
+                                rx.cond(
+                                    LibrarianState.external_books.length() > 0,
+                                    rx.vstack(
+                                        meta_text("Continue your search"),
+                                        rx.text(
+                                            LibrarianState.external_books_copy_text,
+                                            white_space="pre-wrap",
+                                            font_family=Font.system,
+                                            font_size=Type.meta,
+                                        ),
+                                        primary_button(
+                                            "Copy all",
+                                            on_click=rx.set_clipboard(LibrarianState.external_books_copy_text),
+                                            type="button",
+                                        ),
+                                        spacing="2",
+                                        margin_top="1rem",
+                                        padding="0.75rem",
+                                        border=f"1px solid {Color.text_soft}",
+                                        border_radius="4px",
+                                    ),
+                                ),
                                 spacing="3",
                                 margin_top="1rem",
                             ),

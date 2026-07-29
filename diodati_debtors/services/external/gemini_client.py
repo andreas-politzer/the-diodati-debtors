@@ -9,29 +9,50 @@ import requests
 
 from ...core.config import settings
 
-_TIMEOUT_SECONDS = 15
+_TIMEOUT_SECONDS = 20
 
 
 def generate_text(prompt: str) -> str:
     """Send a single-turn prompt, return the model's text response.
+    Retries once on a transient network/timeout failure — per the
+    29.07 investigation, Gemini occasionally times out even within a
+    generous window, and the Librarian's remark call failing silently
+    was masking real Byron responses behind a generic fallback string.
 
-    Raises requests.RequestException on network/HTTP failure, or
-    ValueError if the response has no usable text (e.g. blocked by
-    safety filters) — neither is translated into a domain exception
-    here, per the Service Contract.
+    Raises requests.RequestException on network/HTTP failure (after
+    the retry), or ValueError if the response has no usable text
+    (e.g. blocked by safety filters) — neither is translated into a
+    domain exception here, per the Service Contract.
     """
     url = f"{settings.gemini_base_url}/models/{settings.gemini_model}:generateContent"
-    response = requests.post(
-        url,
-        headers={
-            "x-goog-api-key": settings.gemini_api_key,
-            "Content-Type": "application/json",
-        },
-        json={"contents": [{"parts": [{"text": prompt}]}]},
-        timeout=(3.0, _TIMEOUT_SECONDS),
-    )
-    response.raise_for_status()
-    data = response.json()
+    last_error = None
+    for attempt in range(2):
+        try:
+            response = requests.post(
+                url,
+                headers={
+                    "x-goog-api-key": settings.gemini_api_key,
+                    "Content-Type": "application/json",
+                },
+                json={"contents": [{"parts": [{"text": prompt}]}]},
+                timeout=(3.0, _TIMEOUT_SECONDS),
+            )
+            response.raise_for_status()
+            data = response.json()
+            break
+        except (requests.Timeout, requests.ConnectionError) as e:
+            last_error = e
+            if attempt == 0:
+                continue
+            raise
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code in (500, 502, 503, 504) and attempt == 0:
+                last_error = e
+                continue
+            raise
+    else:
+        raise last_error
+
     try:
         return data["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError, IndexError) as e:

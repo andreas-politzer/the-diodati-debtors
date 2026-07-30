@@ -12,6 +12,9 @@ from .post import Post
 from .comment import Comment
 from .review import Review
 from .contact import Contact
+from .user_profile import UserProfile
+from .borrowing_inquiry import BorrowingInquiry, BorrowingInquiryMessage
+from .club_conversation import ClubConversation, ClubConversationMessage
 
 __all__ = [
     "User",
@@ -25,4 +28,7 @@ __all__ = [
     "Comment",
     "Review",
     "Contact",
+     "UserProfile",
+     "BorrowingInquiryMessage",
+     "ClubConversationMessage",
 ]

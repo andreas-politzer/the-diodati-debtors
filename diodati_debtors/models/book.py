@@ -28,7 +28,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.time import utcnow
 from ..db.base import Base
-from .enums import BookGenre, SummarySource
+from .enums import BookGenre, BorrowingVisibility, SummarySource
 
 
 class Book(Base):
@@ -62,6 +62,16 @@ class Book(Base):
             values_callable=lambda enum_cls: [e.value for e in enum_cls],
         ),
         nullable=True,
+    )
+    borrowing_visibility: Mapped[BorrowingVisibility] = mapped_column(
+        Enum(
+            BorrowingVisibility,
+            native_enum=False,
+            length=30,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        default=BorrowingVisibility.CLUB_ONLY,
+        nullable=False,
     )
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False

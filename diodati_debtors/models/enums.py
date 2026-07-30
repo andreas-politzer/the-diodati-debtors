@@ -114,5 +114,34 @@ class ConditionRating(str, enum.Enum):
     SLIGHTLY_WORSE = "slightly_worse"
     SIGNIFICANTLY_WORSE = "significantly_worse"
 
+class ProfileVisibility(str, enum.Enum):
+    """Controls visibility of the entire optional UserProfile — one
+    shared level, not per-field (deliberate simplification from the
+    Personal Messages domain session, project vault). Also gates both
+    Public Borrowing Inquiries and club-internal messaging — one
+    setting, two consumers, never a separate "allow direct messages"
+    toggle.
+    """
 
-__all__ = ["GroupRole", "RequestStatus", "BookGenre", "PostType", "SummarySource", "ConditionRating"]
+    PRIVATE = "private"
+    CLUBS_ONLY = "clubs_only"
+    PUBLIC = "public"
+
+
+class BorrowingVisibility(str, enum.Enum):
+    """Per-book setting — deliberately NOT a user-level toggle (see
+    Personal Messages Domain Model, project vault): "allow direct
+    contact" belongs to the book, not the person, since an owner may
+    want most books lendable but a few withheld (rarity, sentimental
+    value). The Librarian asks "may this BOOK receive public
+    enquiries?", never "may this PERSON be contacted?".
+    """
+
+    CLUB_ONLY = "club_only"
+    PUBLIC_ENQUIRIES_ALLOWED = "public_enquiries_allowed"
+    NOT_AVAILABLE = "not_available"
+
+
+__all__ = ["GroupRole", "RequestStatus", "BookGenre", "PostType", 
+           "SummarySource", "ConditionRating", "ProfileVisibility", "BorrowingVisibility",
+]

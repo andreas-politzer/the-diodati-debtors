@@ -141,7 +141,19 @@ class BorrowingVisibility(str, enum.Enum):
     PUBLIC_ENQUIRIES_ALLOWED = "public_enquiries_allowed"
     NOT_AVAILABLE = "not_available"
 
+class InquiryStatus(str, enum.Enum):
+    """Deliberately minimal — no APPROVED/DECLINED (an Inquiry has no
+    approval workflow, only Loan Requests do). OPEN/CLOSED describes
+    the natural fachlich lifecycle: a conversation ends (book gets
+    lent, owner declines, requester loses interest), but the Inquiry
+    itself is never deleted — same immutable-history principle as
+    Loan/LoanRequest.
+    """
+
+    OPEN = "open"
+    CLOSED = "closed"
+
 
 __all__ = ["GroupRole", "RequestStatus", "BookGenre", "PostType", 
-           "SummarySource", "ConditionRating", "ProfileVisibility", "BorrowingVisibility",
+           "SummarySource", "ConditionRating", "ProfileVisibility", "BorrowingVisibility", "InquiryStatus",
 ]

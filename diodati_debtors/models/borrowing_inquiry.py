@@ -14,11 +14,12 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import DateTime, ForeignKey, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.time import utcnow
 from ..db.base import Base
+from .enums import InquiryStatus
 
 
 class BorrowingInquiry(Base):
@@ -36,6 +37,16 @@ class BorrowingInquiry(Base):
     )
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False
+    )
+    status: Mapped[InquiryStatus] = mapped_column(
+        Enum(
+            InquiryStatus,
+            native_enum=False,
+            length=20,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        default=InquiryStatus.OPEN,
+        nullable=False,
     )
 
     book: Mapped["Book"] = relationship()

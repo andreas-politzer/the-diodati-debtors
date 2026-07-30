@@ -126,46 +126,91 @@ def test_ask_librarian_handles_user_with_no_visible_books_at_all(db, monkeypatch
 
 
 def test_get_external_recommendation_success(monkeypatch):
-    monkeypatch.setattr(librarian_service, "generate_text", lambda prompt: "Frankenstein | Mary Shelley")
+    query = "a very serious scientist attempts to create life artificially"
 
-    from diodati_debtors.services.book_service import BookSearchResult
+    def fake_generate_text(prompt):
+        if "candidate_books" in prompt:
+            return '{"answer": "", "candidate_books": [{"title": "Frankenstein", "author": "Mary Shelley"}]}'
+        return "Ah, Frankenstein indeed!"
 
-    fake_result = BookSearchResult(
-        work_key="/works/OL1W", title="Frankenstein", author="Mary Shelley",
-        publish_year=1818, edition_count=50, cover_id=123, isbn="9780141439471",
+    monkeypatch.setattr(librarian_service, "generate_text", fake_generate_text)
+
+    from diodati_debtors.services.external.google_books_client import GoogleBookResult
+
+    fake_result = GoogleBookResult(
+        title="Frankenstein", author="Mary Shelley",
+        isbn="9780141439471", cover_url="http://example.com/cover.jpg", info_link=None,
     )
-    monkeypatch.setattr(librarian_service, "search_books", lambda q: [fake_result])
+    monkeypatch.setattr(
+        librarian_service.google_books_client, "search_books",
+        lambda q, max_results=5: [fake_result],
+    )
 
-    result = librarian_service.get_external_recommendation("a scientist creates life")
+    result = librarian_service.get_external_recommendation(query)
 
     assert result is not None
-    assert len(result.books) == 1
     assert result.books[0].title == "Frankenstein"
     assert result.books[0].author == "Mary Shelley"
-    assert result.books[0].isbn == "9780141439471"
-    assert result.books[0].cover_url == "https://covers.openlibrary.org/b/id/123-M.jpg"
-    assert result.remark  # Byron's remark is non-empty
 
 
 def test_get_external_recommendation_falls_back_without_open_library_match(monkeypatch):
-    monkeypatch.setattr(librarian_service, "generate_text", lambda prompt: "Some Rare Book | Some Author")
-    monkeypatch.setattr(librarian_service, "search_books", lambda q: [])
+    """Renamed intent (per the 28.07 hard-verification fix): an
+    unverifiable candidate is silently dropped, never shown as a
+    "fact" — but a factual answer alone (without any book) is still a
+    valid, non-None result."""
+    query = "please recommend me a genuinely quite obscure forgotten book"
 
-    result = librarian_service.get_external_recommendation("something obscure")
+    def fake_generate_text(prompt):
+        if "candidate_books" in prompt:
+            return (
+                '{"answer": "I could not verify a specific title, but this '
+                'theme is common in gothic literature.", '
+                '"candidate_books": [{"title": "Some Rare Book", "author": "Some Author"}]}'
+            )
+        return "Alas, I cannot confirm a specific volume, but take heart..."
+
+    monkeypatch.setattr(librarian_service, "generate_text", fake_generate_text)
+    monkeypatch.setattr(
+        librarian_service.google_books_client, "search_books",
+        lambda q, max_results=5: [],
+    )
+
+    result = librarian_service.get_external_recommendation(query)
 
     assert result is not None
-    assert result.books[0].title == "Some Rare Book"
-    assert result.books[0].cover_url is None
+    assert result.books == []
+    assert result.remark
 
 
 def test_get_external_recommendation_parses_multiple_books(monkeypatch):
-    monkeypatch.setattr(
-        librarian_service, "generate_text",
-        lambda prompt: "Book One | Author One\nBook Two | Author Two\nBook Three | Author Three",
-    )
-    monkeypatch.setattr(librarian_service, "search_books", lambda q: [])
+    query = "please give me three completely different classic novel suggestions"
 
-    result = librarian_service.get_external_recommendation("three books please")
+    def fake_generate_text(prompt):
+        if "candidate_books" in prompt:
+            return (
+                '{"answer": "", "candidate_books": ['
+                '{"title": "Book One", "author": "Author One"}, '
+                '{"title": "Book Two", "author": "Author Two"}, '
+                '{"title": "Book Three", "author": "Author Three"}]}'
+            )
+        return "Here are three splendid choices!"
+
+    monkeypatch.setattr(librarian_service, "generate_text", fake_generate_text)
+
+    from diodati_debtors.services.external.google_books_client import GoogleBookResult
+
+    def fake_search(query, max_results=5):
+        if "Book One" in query:
+            return [GoogleBookResult(title="Book One", author="Author One", isbn=None, cover_url=None, info_link=None)]
+        if "Book Two" in query:
+            return [GoogleBookResult(title="Book Two", author="Author Two", isbn=None, cover_url=None, info_link=None)]
+        if "Book Three" in query:
+            return [GoogleBookResult(title="Book Three", author="Author Three", isbn=None, cover_url=None, info_link=None)]
+        return []
+
+    monkeypatch.setattr(librarian_service.google_books_client, "search_books", fake_search)
+
+    result = librarian_service.get_external_recommendation(query)
 
     assert result is not None
     assert len(result.books) == 3

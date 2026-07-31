@@ -47,6 +47,7 @@ def book_detail() -> rx.Component:
                 ),
                 meta_text(f"Owned by {BookDetailState.detail_book.owner_name}"),
                 meta_text(BookDetailState.detail_book.status),
+                meta_text(BookDetailState.detail_book.borrowing_visibility.replace("_", " ")),
                 rx.link(
                     "☞ Reviews",
                     href=f"/book/{BookDetailState.detail_book.id}/reviews",

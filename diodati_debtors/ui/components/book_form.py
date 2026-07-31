@@ -12,7 +12,7 @@ import reflex as rx
 
 from .button import primary_button
 from ...state.book_detail_state import BookDetailState
-from ...models.enums import BookGenre
+from ...models.enums import BookGenre, BorrowingVisibility
 
 
 def book_form(book_id="", submit_label: str = "Save") -> rx.Component:
@@ -56,6 +56,13 @@ def book_form(book_id="", submit_label: str = "Save") -> rx.Component:
                 name="genre",
                 value=BookDetailState.form_genre,
                 on_change=BookDetailState.set_form_genre,
+            ),
+            rx.select(
+                [v.value for v in BorrowingVisibility],
+                placeholder="Borrowing visibility",
+                name="borrowing_visibility",
+                value=BookDetailState.form_borrowing_visibility,
+                on_change=BookDetailState.set_form_borrowing_visibility,
             ),
             primary_button(submit_label, type="submit"),
             spacing="3",

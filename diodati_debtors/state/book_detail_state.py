@@ -36,6 +36,7 @@ class BookDetailView:
     isbn: str | None = None
     location: str | None = None
     genre: str | None = None
+    borrowing_visibility: str = "club_only"
     owner_name: str = ""
     status: str = ""
     owner_id: int = 0
@@ -68,6 +69,7 @@ class BookDetailState(rx.State):
     form_isbn: str = ""
     form_location: str = ""
     form_genre: str = ""
+    form_borrowing_visibility: str = ""
     form_summary: str = ""
 
     search_query: str = ""
@@ -87,6 +89,9 @@ class BookDetailState(rx.State):
 
     def set_form_genre(self, value: str):
         self.form_genre = value
+
+    def set_form_borrowing_visibility(self, value: str):
+        self.form_borrowing_visibility = value
 
     def set_form_summary(self, value: str):
         self.form_summary = value
@@ -128,6 +133,7 @@ class BookDetailState(rx.State):
             isbn=book.isbn,
             location=book.location,
             genre=book.genre,
+            borrowing_visibility=book.borrowing_visibility,
             owner_name=owner.display_name,
             status="on loan" if active_loan else "available",
             owner_id=book.owner_id,
@@ -169,6 +175,7 @@ class BookDetailState(rx.State):
         self.form_isbn = self.detail_book.isbn or ""
         self.form_location = self.detail_book.location or ""
         self.form_genre = self.detail_book.genre or ""
+        self.form_borrowing_visibility = self.detail_book.borrowing_visibility
         self.form_summary = (
             self.detail_book.summary
             if self.detail_book.summary_source == "owner"
@@ -334,6 +341,7 @@ class BookDetailState(rx.State):
                         if form_data.get("genre", "") in ("", "—")
                         else form_data.get("genre")
                     ),
+                    borrowing_visibility=form_data.get("borrowing_visibility") or None,
                 )
                 self.info_message = "Book updated."
             else:

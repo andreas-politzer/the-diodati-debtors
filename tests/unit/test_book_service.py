@@ -336,6 +336,25 @@ def test_update_book_can_set_genre(db):
 
     assert result.genre == "horror"
 
+def test_update_book_can_set_borrowing_visibility(db):
+    owner_id = _make_user(db, "owner_visibility1@example.com")
+    book = book_service.create_book(owner_id=owner_id, title="Frankenstein")
+
+    result = book_service.update_book(
+        book.id, owner_id=owner_id, title="Frankenstein",
+        borrowing_visibility="public_enquiries_allowed",
+    )
+
+    assert result.borrowing_visibility == "public_enquiries_allowed"
+
+
+def test_create_book_defaults_to_club_only_visibility(db):
+    owner_id = _make_user(db, "owner_visibility2@example.com")
+
+    result = book_service.create_book(owner_id=owner_id, title="Dracula")
+
+    assert result.borrowing_visibility == "club_only"
+
 
 def test_create_book_rejects_invalid_genre(db):
     owner_id = _make_user(db, "owner_genre4@example.com")

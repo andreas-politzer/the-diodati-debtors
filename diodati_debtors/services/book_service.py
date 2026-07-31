@@ -35,7 +35,7 @@ from ..core.normalize import blank_to_none
 from ..db.session import get_session
 from ..models.book import Book
 from ..models.enums import RequestStatus
-from ..models.enums import BookGenre
+from ..models.enums import BookGenre, BorrowingVisibility
 from ..models.group import GroupMembership
 from ..models.loan import Loan
 from ..models.loan_request import LoanRequest
@@ -88,6 +88,7 @@ class BookResult:
     isbn: str | None
     location: str | None
     genre: str | None
+    borrowing_visibility: str
     created_at: dt.datetime
     summary: str | None
     summary_source: str | None
@@ -105,6 +106,7 @@ def _to_result(book: Book) -> BookResult:
         isbn=book.isbn,
         location=book.location,
         genre=book.genre.value if book.genre else None,
+        borrowing_visibility=book.borrowing_visibility.value,
         created_at=book.created_at,
         summary=book.summary,
         summary_source=book.summary_source.value if book.summary_source else None,
@@ -227,6 +229,7 @@ def update_book(
     isbn: str | None = None,
     location: str | None = None,
     genre: str | None = None,
+    borrowing_visibility: str | None = None,
 ) -> BookResult:
     """Update a book's metadata. Owner-only.
 
@@ -251,6 +254,8 @@ def update_book(
         book.isbn = blank_to_none(isbn)
         book.location = blank_to_none(location)
         book.genre = BookGenre(genre) if genre else None
+        if borrowing_visibility is not None:
+            book.borrowing_visibility = BorrowingVisibility(borrowing_visibility)
         session.flush()
         return _to_result(book)
 def _compute_and_store_embedding(session, book: Book) -> None:

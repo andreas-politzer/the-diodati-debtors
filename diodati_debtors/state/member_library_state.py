@@ -14,6 +14,7 @@ import reflex as rx
 from ..core.exceptions import DiodatiError
 from ..services import book_service, loan_service, trust_service, user_service
 from .auth_state import AuthState
+from ..services import group_service
 
 
 @dataclass
@@ -54,6 +55,14 @@ class MemberLibraryState(rx.State):
         current_user_id = (
             int(auth_state.current_user_id) if auth_state.is_logged_in else None
         )
+        if current_user_id is None:
+            self.error_message = "You must be logged in to view a member's library."
+            return
+
+        visible_owner_ids = group_service.get_visible_owner_ids(current_user_id)
+        if member_id not in visible_owner_ids:
+            self.error_message = "You do not have permission to view this member's library."
+            return
 
         try:
             member = user_service.get_user(member_id)

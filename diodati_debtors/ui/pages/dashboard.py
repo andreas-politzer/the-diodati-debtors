@@ -202,7 +202,7 @@ def dashboard() -> rx.Component:
                 rx.link("☞ Bookmates", href="/members", display="block"),
                 rx.link(
                     rx.hstack(
-                        rx.text("☞ Organize"),
+                        rx.text("☞ Organise"),
                         rx.cond(
                             OrganizeState.pending_count > 0,
                             rx.text(f"({OrganizeState.pending_count})", color=Color.accent, font_weight="700"),
@@ -382,10 +382,15 @@ def dashboard() -> rx.Component:
             ),
         ),
         max_width="80rem",
-        top_right=rx.link(
-            "☞ Log out",
-            href="/",
-            on_click=[AuthState.logout, GroupState.clear_selection],
+        top_right=rx.vstack(
+            rx.link(
+                "☞ Log out",
+                href="/",
+                on_click=[AuthState.logout, GroupState.clear_selection],
+            ),
+            rx.link("☞ Profile", href="/profile"),
+            spacing="1",
+            align="start",
         ),
     )
 

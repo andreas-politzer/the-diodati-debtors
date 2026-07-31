@@ -39,6 +39,7 @@ class Font:
     display = "'Bodoni Moda', serif"
     body = "'Libre Baskerville', 'EB Garamond', serif"
     system = "'Inter', sans-serif"
+    avatar = "'UnifrakturMaguntia', serif"
 
     # Google Fonts stylesheet URL, wired into the app via head_components
     # in the shell (see ui/components/shell.py). Weights kept minimal —
@@ -48,6 +49,7 @@ class Font:
         "?family=Bodoni+Moda:wght@500;700"
         "&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400"
         "&family=Inter:wght@400;500;600"
+        "&family=UnifrakturMaguntia"
         "&display=swap"
     )
 

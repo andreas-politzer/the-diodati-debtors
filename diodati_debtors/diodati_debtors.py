@@ -30,6 +30,8 @@ from .ui.pages.lend_to_contact import lend_to_contact
 from .ui.pages.manual import manual
 from .ui.pages.librarian import librarian
 from .ui.pages.import_books import import_books
+from .ui.pages.profile import profile
+from .state.profile_state import ProfileState
 from .state.bulk_import_state import BulkImportState
 from .state.librarian_state import LibrarianState
 from .state.review_state import ReviewState
@@ -193,4 +195,9 @@ app.add_page(
 )
 app.add_page(
     import_books, route="/import-books", on_load=AuthState.check_auth
+)
+app.add_page(
+    profile,
+    route="/profile",
+    on_load=[AuthState.check_auth, ProfileState.load_profile],
 )

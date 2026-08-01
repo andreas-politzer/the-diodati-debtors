@@ -13,6 +13,7 @@ from ..db.session import get_session
 from ..models.enums import ProfileVisibility
 from ..models.user import User
 from ..models.user_profile import UserProfile
+from sqlalchemy import select
 
 
 @dataclass(frozen=True)
@@ -103,6 +104,25 @@ def update_profile(
 
         session.flush()
         return _to_result(profile)
+
+def get_public_profile_user_ids(user_ids: list[int]) -> set[int]:
+    """Given a list of user IDs, returns the subset whose profile
+    visibility is PUBLIC — used to decide whether a name should be
+    clickable/linked in the Global Board or Club Feed (per the 31.07.
+    domain session: a name only becomes a link as a natural
+    consequence of having posted, never through a separate directory).
+    """
+    if not user_ids:
+        return set()
+
+    with get_session() as session:
+        profiles = session.scalars(
+            select(UserProfile).where(
+                UserProfile.user_id.in_(user_ids),
+                UserProfile.visibility == ProfileVisibility.PUBLIC,
+            )
+        ).all()
+        return {p.user_id for p in profiles}
 
 
 __all__ = ["ProfileResult", "get_or_create_profile", "update_profile"]

@@ -74,6 +74,35 @@ def test_update_profile_raises_for_unknown_user(db):
     with pytest.raises(NotFoundError):
         profile_service.update_profile(999999, display_name="Ghost")
 
+def test_get_public_profile_user_ids_returns_only_public(db):
+    public_user_id = _make_user(db, "public_profile1@example.com")
+    private_user_id = _make_user(db, "private_profile1@example.com")
+    clubs_only_user_id = _make_user(db, "clubsonly_profile1@example.com")
+
+    profile_service.update_profile(public_user_id, visibility="public")
+    profile_service.update_profile(private_user_id, visibility="private")
+    profile_service.update_profile(clubs_only_user_id, visibility="clubs_only")
+
+    result = profile_service.get_public_profile_user_ids(
+        [public_user_id, private_user_id, clubs_only_user_id]
+    )
+
+    assert result == {public_user_id}
+
+
+def test_get_public_profile_user_ids_returns_empty_for_no_profiles(db):
+    user_id = _make_user(db, "no_profile1@example.com")
+
+    result = profile_service.get_public_profile_user_ids([user_id])
+
+    assert result == set()
+
+
+def test_get_public_profile_user_ids_returns_empty_set_for_empty_input():
+    result = profile_service.get_public_profile_user_ids([])
+
+    assert result == set()
+
 
 def test_profile_service_has_no_reflex_dependency():
     with open(profile_service.__file__, encoding="utf-8") as f:

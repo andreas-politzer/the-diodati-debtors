@@ -24,7 +24,11 @@ from ...state.post_state import CommentView, PostState, PostView
 
 def _comment_row(comment: CommentView) -> rx.Component:
     return rx.hstack(
-        meta_text(comment.author_name),
+        rx.cond(
+            comment.author_profile_public,
+            rx.link(comment.author_name, href=f"/members/{comment.author_id}"),
+            meta_text(comment.author_name),
+        ),
         body_text(comment.content),
         rx.cond(
             comment.is_own,
@@ -40,7 +44,11 @@ def _comment_row(comment: CommentView) -> rx.Component:
 def _post_card(post: PostView) -> rx.Component:
     return card(
         rx.hstack(
-            meta_text(post.author_name),
+            rx.cond(
+                post.author_profile_public,
+                rx.link(post.author_name, href=f"/members/{post.author_id}"),
+                meta_text(post.author_name),
+            ),
             rx.cond(post.post_type == "announcement", rx.text("𓅃", font_size="1.2rem")),
             spacing="2",
         ),

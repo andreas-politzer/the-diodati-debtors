@@ -25,6 +25,9 @@ from .ui.pages.reviews import reviews
 from .ui.pages.synopsis import synopsis
 from .ui.pages.book_discussion import book_discussion
 from .ui.pages.communication import communication
+from .state.communication_state import CommunicationState
+from .ui.pages.club_conversation_detail import club_conversation_detail
+from .state.club_conversation_detail_state import ClubConversationDetailState
 from .ui.pages.lent_out_books import lent_out_books
 from .ui.pages.lend_to_contact import lend_to_contact
 from .ui.pages.manual import manual
@@ -115,6 +118,7 @@ app.add_page(
         LoanActivityState.load_borrowed_books,
         LoanActivityState.load_lent_out_books,
         OrganizeState.load_pending_count,
+        CommunicationState.load_unread_count,
     ],
 )
 app.add_page(
@@ -168,9 +172,14 @@ app.add_page(
     on_load=[AuthState.check_auth, PostState.load_book_discussion],
 )
 app.add_page(
-    communication, 
-    route="/communication", 
-    on_load=AuthState.check_auth
+    communication,
+    route="/communication",
+    on_load=[AuthState.check_auth, CommunicationState.load_rows],
+)
+app.add_page(
+    club_conversation_detail,
+    route="/club-conversation/[conversation_id]",
+    on_load=[AuthState.check_auth, ClubConversationDetailState.load_conversation],
 )
 app.add_page(
     lent_out_books,

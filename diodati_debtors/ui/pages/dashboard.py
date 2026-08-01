@@ -21,6 +21,7 @@ from ...state.group_state import GroupState
 from ...state.library_state import LibraryState
 from ...state.loan_activity_state import BorrowedLoanView, LoanActivityState
 from ...state.organize_state import OrganizeState
+from ...state.communication_state import CommunicationState
 from ...models.enums import BookGenre
 
 
@@ -212,7 +213,18 @@ def dashboard() -> rx.Component:
                     href="/organize",
                     display="block",
                 ),
-                rx.link("☞ Communication", href="/communication", display="block"),
+                rx.link(
+                    rx.hstack(
+                        rx.text("☞ Communication"),
+                        rx.cond(
+                            CommunicationState.unread_count > 0,
+                            rx.text(f"({CommunicationState.unread_count})", color=Color.accent, font_weight="700"),
+                        ),
+                        spacing="1",
+                    ),
+                    href="/communication",
+                    display="block",
+                ),
                 rx.link("☞ Ask the Librarian", href="/librarian", display="block"),
                 spacing="2",
                 align="start",

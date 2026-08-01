@@ -29,5 +29,19 @@ def avatar(initials: str, size: str = "36px") -> rx.Component:
         justify_content="center",
     )
 
+def compute_initials(name: str) -> str:
+    """Pure helper, shared between ProfileState (own avatar) and any
+    message view that wants a sender monogram — avoids duplicating
+    this logic in multiple State classes."""
+    name = name.strip()
+    if not name:
+        return "?"
+    parts = [p for p in name.split() if p]
+    if not parts:
+        return "?"
+    if len(parts) == 1:
+        return parts[0][0].upper()
+    return (parts[0][0] + parts[-1][0]).upper()
+
 
 __all__ = ["avatar"]

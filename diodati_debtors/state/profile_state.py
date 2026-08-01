@@ -10,6 +10,7 @@ import reflex as rx
 from ..core.exceptions import DiodatiError
 from ..services import profile_service, trust_service
 from .auth_state import AuthState
+from ..ui.components.avatar import compute_initials
 
 
 class ProfileState(rx.State):
@@ -67,12 +68,7 @@ class ProfileState(rx.State):
         if not name:
             auth_state = await self.get_state(AuthState)
             name = auth_state.current_user_display_name.strip()
-        parts = [p for p in name.split() if p]
-        if not parts:
-            return "?"
-        if len(parts) == 1:
-            return parts[0][0].upper()
-        return (parts[0][0] + parts[-1][0]).upper()
+        return compute_initials(name)
 
     async def save_profile(self):
         self.error_message = ""

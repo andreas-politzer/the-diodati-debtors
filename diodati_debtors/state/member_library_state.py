@@ -40,6 +40,7 @@ class MemberLibraryState(rx.State):
     viewing_member_name: str = ""
     viewing_member_bio: str = ""
     viewing_member_profile_visible: bool = False
+    viewing_member_shows_library: bool = False
     viewing_member_visibility_label: str = ""
     viewing_member_location: str = ""
     viewing_member_favorite_genre: str = ""
@@ -66,18 +67,28 @@ class MemberLibraryState(rx.State):
             return
 
         visible_owner_ids = group_service.get_visible_owner_ids(current_user_id)
-        if member_id not in visible_owner_ids:
-            self.error_message = "You do not have permission to view this member's library."
+        is_shared_club_member = member_id in visible_owner_ids
+
+        public_profile_ids = profile_service.get_public_profile_user_ids([member_id])
+        is_public_profile = member_id in public_profile_ids
+
+        if not is_shared_club_member and not is_public_profile:
+            self.error_message = "You do not have permission to view this member's profile."
             return
+
+        self.viewing_member_shows_library = is_shared_club_member
 
         try:
             member = user_service.get_user(member_id)
-            book_results = book_service.list_books_for_owner(member_id)
+            book_results = (
+                book_service.list_books_for_owner(member_id)
+                if self.viewing_member_shows_library
+                else []
+            )
             user_results = user_service.list_users()
         except DiodatiError as e:
             self.error_message = str(e)
             return
-
         self.viewing_member_name = member.display_name
         try:
             member_profile = profile_service.get_or_create_profile(member_id)
@@ -103,9 +114,13 @@ class MemberLibraryState(rx.State):
             self.viewing_member_bio = ""
             self.viewing_member_location = ""
             self.viewing_member_favorite_genre = ""
-        signals = trust_service.get_trust_signals(member_id)
-        self.viewing_member_reliability = signals.reliability
-        self.viewing_member_book_care = signals.book_care
+        if self.viewing_member_shows_library:
+            signals = trust_service.get_trust_signals(member_id)
+            self.viewing_member_reliability = signals.reliability
+            self.viewing_member_book_care = signals.book_care
+        else:
+            self.viewing_member_reliability = ""
+            self.viewing_member_book_care = ""
 
         owner_names_by_id = {u.id: u.display_name for u in user_results}
         book_ids = [b.id for b in book_results]

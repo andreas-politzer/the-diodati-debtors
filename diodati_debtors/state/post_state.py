@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 import reflex as rx
 
 from ..core.exceptions import DiodatiError
-from ..services import comment_service, post_service, user_service
+from ..services import comment_service, post_service, profile_service, user_service
 from .auth_state import AuthState
 from .group_state import GroupState
 
@@ -26,19 +26,23 @@ from .group_state import GroupState
 @dataclass
 class CommentView:
     id: int
+    author_id: int
     author_name: str
     content: str
     is_own: bool = False
+    author_profile_public: bool = False
 
 
 @dataclass
 class PostView:
     id: int
+    author_id: int
     author_name: str
     content: str
     post_type: str
     is_own: bool = False
     comments: list[CommentView] = field(default_factory=list)
+    author_profile_public: bool = False
 
 
 class PostState(rx.State):
@@ -52,7 +56,10 @@ class PostState(rx.State):
         """Shared enrichment: author name, ownership, and comments per
         post. One user_service call total, then per-post comment
         lookups (acceptable at this scale — same reasoning as the book
-        detail page's loan history).
+        detail page's loan history). Also checks which authors have a
+        PUBLIC profile, so their name can become a link — per the
+        31.07. domain session, this is the ONLY place names become
+        clickable, never a separate directory.
         """
         auth_state = await self.get_state(AuthState)
         current_user_id = (
@@ -66,35 +73,46 @@ class PostState(rx.State):
             return []
         names_by_id = {u.id: u.display_name for u in user_results}
 
+        try:
+            comment_results_by_post = {
+                post.id: comment_service.list_comments_for_post(post.id)
+                for post in post_results
+            }
+        except DiodatiError:
+            comment_results_by_post = {post.id: [] for post in post_results}
+
+        all_author_ids = {post.author_id for post in post_results}
+        for comments in comment_results_by_post.values():
+            all_author_ids.update(c.author_id for c in comments)
+        public_profile_ids = profile_service.get_public_profile_user_ids(list(all_author_ids))
+
         views: list[PostView] = []
         for post in post_results:
-            try:
-                comment_results = comment_service.list_comments_for_post(post.id)
-            except DiodatiError:
-                comment_results = []
-
+            comment_results = comment_results_by_post.get(post.id, [])
             comments = [
                 CommentView(
                     id=c.id,
+                    author_id=c.author_id,
                     author_name=names_by_id.get(c.author_id, f"User {c.author_id}"),
                     content=c.content,
                     is_own=(c.author_id == current_user_id),
+                    author_profile_public=(c.author_id in public_profile_ids),
                 )
                 for c in comment_results
             ]
-
             views.append(
                 PostView(
                     id=post.id,
+                    author_id=post.author_id,
                     author_name=names_by_id.get(post.author_id, f"User {post.author_id}"),
                     content=post.content,
                     post_type=post.post_type,
                     is_own=(post.author_id == current_user_id),
                     comments=comments,
+                    author_profile_public=(post.author_id in public_profile_ids),
                 )
             )
         return views
-
     async def load_board(self):
         self.error_message = ""
         try:

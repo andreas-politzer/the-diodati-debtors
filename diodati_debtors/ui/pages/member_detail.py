@@ -17,10 +17,13 @@ from ...state.member_library_state import MemberLibraryState
 def member_detail() -> rx.Component:
     return shell(
         page_title(MemberLibraryState.viewing_member_name),
-        card(
-            meta_text(f"Reliability: {MemberLibraryState.viewing_member_reliability}"),
-            meta_text(f"Book Care: {MemberLibraryState.viewing_member_book_care}"),
-            width="fit-content",
+        rx.cond(
+            MemberLibraryState.viewing_member_shows_library,
+            card(
+                meta_text(f"Reliability: {MemberLibraryState.viewing_member_reliability}"),
+                meta_text(f"Book Care: {MemberLibraryState.viewing_member_book_care}"),
+                width="fit-content",
+            ),
         ),
         rx.hstack(
             page_title("Profile", font_size="1.3rem"),
@@ -48,13 +51,18 @@ def member_detail() -> rx.Component:
             ),
             card(meta_text("This member's profile is private."), width="fit-content"),
         ),
-        divider(),
-        page_title("Personal Library", font_size="1.3rem"),
-        rx.grid(
-            rx.foreach(MemberLibraryState.member_books, book_row),
-            columns="repeat(auto-fill, minmax(220px, 1fr))",
-            gap="1rem",
-            width="100%",
+        rx.cond(
+            MemberLibraryState.viewing_member_shows_library,
+            rx.fragment(
+                divider(),
+                page_title("Personal Library", font_size="1.3rem"),
+                rx.grid(
+                    rx.foreach(MemberLibraryState.member_books, book_row),
+                    columns="repeat(auto-fill, minmax(220px, 1fr))",
+                    gap="1rem",
+                    width="100%",
+                ),
+            ),
         ),
         rx.link("☞ Back to members", href="/members", margin_top="1rem", display="block"),
         max_width="80rem",

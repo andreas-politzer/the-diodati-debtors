@@ -15,6 +15,7 @@ from ..core.exceptions import DiodatiError
 from ..services import book_service, loan_service, trust_service, user_service
 from .auth_state import AuthState
 from ..services import group_service
+from ..services import profile_service
 
 
 @dataclass
@@ -37,6 +38,11 @@ class MemberBookView:
 class MemberLibraryState(rx.State):
     member_books: list[MemberBookView] = []
     viewing_member_name: str = ""
+    viewing_member_bio: str = ""
+    viewing_member_profile_visible: bool = False
+    viewing_member_visibility_label: str = ""
+    viewing_member_location: str = ""
+    viewing_member_favorite_genre: str = ""
     viewing_member_reliability: str = ""
     viewing_member_book_care: str = ""
     error_message: str = ""
@@ -73,6 +79,30 @@ class MemberLibraryState(rx.State):
             return
 
         self.viewing_member_name = member.display_name
+        try:
+            member_profile = profile_service.get_or_create_profile(member_id)
+        except DiodatiError:
+            member_profile = None
+
+        visibility_labels = {
+            "private": "Private",
+            "clubs_only": "Members only",
+            "public": "Public",
+        }
+        self.viewing_member_visibility_label = (
+            visibility_labels.get(member_profile.visibility, "") if member_profile else ""
+        )
+
+        if member_profile is not None and member_profile.visibility != "private":
+            self.viewing_member_profile_visible = True
+            self.viewing_member_bio = member_profile.bio or ""
+            self.viewing_member_location = member_profile.location or ""
+            self.viewing_member_favorite_genre = member_profile.favorite_genre or ""
+        else:
+            self.viewing_member_profile_visible = False
+            self.viewing_member_bio = ""
+            self.viewing_member_location = ""
+            self.viewing_member_favorite_genre = ""
         signals = trust_service.get_trust_signals(member_id)
         self.viewing_member_reliability = signals.reliability
         self.viewing_member_book_care = signals.book_care

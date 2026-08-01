@@ -30,6 +30,7 @@ class MemberEntry:
     user_id: int
     display_name: str
     role: str
+    is_current_user: bool = False
 
 
 @dataclass
@@ -107,6 +108,10 @@ class GroupState(rx.State):
         self.error_message = ""
         if not self.my_groups:
             await self.load_my_groups()
+        auth_state = await self.get_state(AuthState)
+        current_user_id = (
+            int(auth_state.current_user_id) if auth_state.is_logged_in else None
+        )
 
         overview: list[ClubMembersView] = []
         for group in self.my_groups:
@@ -121,7 +126,10 @@ class GroupState(rx.State):
                     group_name=group["name"],
                     members=[
                         MemberEntry(
-                            user_id=m.user_id, display_name=m.display_name, role=m.role
+                            user_id=m.user_id,
+                            display_name=m.display_name,
+                            role=m.role,
+                            is_current_user=(m.user_id == current_user_id),
                         )
                         for m in members
                     ],

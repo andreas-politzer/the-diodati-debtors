@@ -8,12 +8,14 @@ from __future__ import annotations
 import reflex as rx
 
 from ..core.exceptions import DiodatiError
-from ..services import profile_service
+from ..services import profile_service, trust_service
 from .auth_state import AuthState
 
 
 class ProfileState(rx.State):
     display_name: str = ""
+    reliability: str = ""
+    book_care: str = ""
     location: str = ""
     bio: str = ""
     favorite_genre: str = ""
@@ -55,6 +57,9 @@ class ProfileState(rx.State):
         self.favorite_genre = profile.favorite_genre or ""
         self.avatar_url = profile.avatar_url or ""
         self.visibility = profile.visibility
+        signals = trust_service.get_trust_signals(int(auth_state.current_user_id))
+        self.reliability = signals.reliability
+        self.book_care = signals.book_care
 
     @rx.var
     async def initials(self) -> str:

@@ -16,7 +16,7 @@ from ..services import book_service, loan_service, trust_service, user_service
 from .auth_state import AuthState
 from ..services import group_service
 from ..services import profile_service
-
+from ..services import club_conversation_service
 
 @dataclass
 class MemberBookView:
@@ -46,6 +46,8 @@ class MemberLibraryState(rx.State):
     viewing_member_favorite_genre: str = ""
     viewing_member_reliability: str = ""
     viewing_member_book_care: str = ""
+    club_message_draft: str = ""
+    club_message_sent: bool = False
     error_message: str = ""
 
     async def load_member_library(self):
@@ -154,6 +156,37 @@ class MemberLibraryState(rx.State):
                 )
             )
         self.member_books = views
+
+    def set_club_message_draft(self, value: str):
+        self.club_message_draft = value
+
+    async def send_club_message(self):
+        self.error_message = ""
+        self.club_message_sent = False
+        auth_state = await self.get_state(AuthState)
+        if not auth_state.is_logged_in:
+            self.error_message = "You must be logged in to send a message."
+            return
+        if not self.club_message_draft.strip():
+            self.error_message = "Write a message first."
+            return
+
+        try:
+            member_id = int(self.member_id)
+        except (TypeError, ValueError):
+            self.error_message = "Invalid member id."
+            return
+
+        try:
+            club_conversation_service.send_message(
+                int(auth_state.current_user_id), member_id, self.club_message_draft
+            )
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
+
+        self.club_message_draft = ""
+        self.club_message_sent = True
 
 
 __all__ = ["MemberLibraryState", "MemberBookView"]

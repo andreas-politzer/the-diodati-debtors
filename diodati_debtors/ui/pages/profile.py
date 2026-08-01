@@ -22,6 +22,12 @@ def profile() -> rx.Component:
     return shell(
         page_title("My Profile"),
         avatar(ProfileState.initials),
+        rx.hstack(
+            meta_text(f"Reliability: {ProfileState.reliability}"),
+            meta_text(f"Book Care: {ProfileState.book_care}"),
+            spacing="3",
+        ),
+        divider(),
         divider(),
         rx.cond(
             ProfileState.error_message != "",

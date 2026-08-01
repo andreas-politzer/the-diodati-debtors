@@ -17,17 +17,28 @@ from ...state.group_state import ClubMembersView, GroupState, MemberEntry
 
 
 def _member_link(member: MemberEntry) -> rx.Component:
-    return rx.link(
+    return rx.cond(
+        member.is_current_user,
         rx.hstack(
             rx.text("☞", font_size="1.5rem", line_height="1"),
-            body_text(member.display_name),
+            body_text("You"),
             meta_text(member.role),
             spacing="2",
             align="center",
+            margin_bottom="0.5rem",
         ),
-        href=f"/members/{member.user_id}",
-        display="block",
-        margin_bottom="0.5rem",
+        rx.link(
+            rx.hstack(
+                rx.text("☞", font_size="1.5rem", line_height="1"),
+                body_text(member.display_name),
+                meta_text(member.role),
+                spacing="2",
+                align="center",
+            ),
+            href=f"/members/{member.user_id}",
+            display="block",
+            margin_bottom="0.5rem",
+        ),
     )
 
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 import reflex as rx
 
 from ..components.book_row import book_row
+from ..components.button import primary_button
 from ..components.card import card
 from ..components.label import body_text, meta_text, page_title
 from ..components.shell import divider, shell
@@ -19,10 +20,28 @@ def member_detail() -> rx.Component:
         page_title(MemberLibraryState.viewing_member_name),
         rx.cond(
             MemberLibraryState.viewing_member_shows_library,
-            card(
-                meta_text(f"Reliability: {MemberLibraryState.viewing_member_reliability}"),
-                meta_text(f"Book Care: {MemberLibraryState.viewing_member_book_care}"),
-                width="fit-content",
+            rx.fragment(
+                card(
+                    meta_text(f"Reliability: {MemberLibraryState.viewing_member_reliability}"),
+                    meta_text(f"Book Care: {MemberLibraryState.viewing_member_book_care}"),
+                    width="fit-content",
+                ),
+                rx.cond(
+                    MemberLibraryState.club_message_sent,
+                    meta_text("Message sent."),
+                ),
+                rx.form(
+                    rx.hstack(
+                        rx.input(
+                            placeholder="Send a message...",
+                            value=MemberLibraryState.club_message_draft,
+                            on_change=MemberLibraryState.set_club_message_draft,
+                        ),
+                        primary_button("Send", type="submit"),
+                        spacing="2",
+                    ),
+                    on_submit=MemberLibraryState.send_club_message,
+                ),
             ),
         ),
         rx.hstack(

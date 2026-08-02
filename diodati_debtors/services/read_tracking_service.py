@@ -7,10 +7,11 @@ again — two fully independent read states.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ..db.session import get_session
 from ..models.post_read import CommentRead, PostRead
+from ..models.post import Post
 
 
 def mark_post_read(post_id: int, user_id: int) -> None:
@@ -67,6 +68,45 @@ def get_unread_comment_ids(user_id: int, comment_ids: list[int]) -> set[int]:
         ).all()
         read_id_set = set(read_ids)
         return {cid for cid in comment_ids if cid not in read_id_set}
+
+def count_unread_global_posts(user_id: int) -> int:
+    """Counts unread posts in the Global Board (group_id IS NULL,
+    book_id IS NULL) for this user — a direct, efficient count, not
+    "load everything, then measure the list.""" 
+    with get_session() as session:
+        total = session.scalar(
+            select(func.count(Post.id)).where(
+                Post.group_id.is_(None), Post.book_id.is_(None)
+            )
+        )
+        if not total:
+            return 0
+        read_count = session.scalar(
+            select(func.count(PostRead.id))
+            .join(Post, Post.id == PostRead.post_id)
+            .where(
+                PostRead.user_id == user_id,
+                Post.group_id.is_(None),
+                Post.book_id.is_(None),
+            )
+        )
+        return total - (read_count or 0)
+
+
+def count_unread_club_posts(user_id: int, group_id: int) -> int:
+    """Counts unread posts in a specific club's feed for this user."""
+    with get_session() as session:
+        total = session.scalar(
+            select(func.count(Post.id)).where(Post.group_id == group_id)
+        )
+        if not total:
+            return 0
+        read_count = session.scalar(
+            select(func.count(PostRead.id))
+            .join(Post, Post.id == PostRead.post_id)
+            .where(PostRead.user_id == user_id, Post.group_id == group_id)
+        )
+        return total - (read_count or 0)
 
 
 __all__ = [

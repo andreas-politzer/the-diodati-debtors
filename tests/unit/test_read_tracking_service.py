@@ -8,6 +8,7 @@ from diodati_debtors.models.post import Post
 from diodati_debtors.models.comment import Comment
 from diodati_debtors.models.user import User
 from diodati_debtors.services import read_tracking_service
+from diodati_debtors.models.group import Group
 
 
 def _make_user(db, email: str) -> int:
@@ -89,6 +90,60 @@ def test_get_unread_comment_ids_returns_unread_only(db):
     unread = read_tracking_service.get_unread_comment_ids(user_id, [comment_a, comment_b])
 
     assert unread == {comment_b}
+
+def test_count_unread_global_posts_counts_only_unread(db):
+    author_id = _make_user(db, "count1@example.com")
+    post_a = _make_post(db, author_id, "Global Post A")
+    post_b = _make_post(db, author_id, "Global Post B")
+    reader_id = _make_user(db, "count2@example.com")
+
+    read_tracking_service.mark_post_read(post_a, reader_id)
+
+    count = read_tracking_service.count_unread_global_posts(reader_id)
+
+    assert count == 1
+
+
+def test_count_unread_global_posts_excludes_club_and_book_posts(db):
+    author_id = _make_user(db, "count3@example.com")
+    reader_id = _make_user(db, "count4@example.com")
+    _make_post(db, author_id, "Global Post")
+
+    with db() as session:
+        group = Group(name="Some Club", founder_id=author_id)
+        session.add(group)
+        session.commit()
+        session.refresh(group)
+        club_post = Post(author_id=author_id, content="Club Post", post_type="general", group_id=group.id)
+        session.add(club_post)
+        session.commit()
+
+    count = read_tracking_service.count_unread_global_posts(reader_id)
+
+    assert count == 1
+
+
+def test_count_unread_club_posts_counts_only_that_clubs_unread(db):
+    author_id = _make_user(db, "count5@example.com")
+    reader_id = _make_user(db, "count6@example.com")
+
+    with db() as session:
+        group = Group(name="Test Club", founder_id=author_id)
+        session.add(group)
+        session.commit()
+        session.refresh(group)
+        group_id = group.id
+        post_a = Post(author_id=author_id, content="Club Post A", post_type="general", group_id=group_id)
+        post_b = Post(author_id=author_id, content="Club Post B", post_type="general", group_id=group_id)
+        session.add_all([post_a, post_b])
+        session.commit()
+        session.refresh(post_a)
+
+    read_tracking_service.mark_post_read(post_a.id, reader_id)
+
+    count = read_tracking_service.count_unread_club_posts(reader_id, group_id)
+
+    assert count == 1
 
 
 def test_read_tracking_service_has_no_reflex_dependency():

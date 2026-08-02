@@ -244,6 +244,27 @@ def list_inquiries_for_user(user_id: int) -> list[InquiryResult]:
         ).all()
         return [_to_inquiry_result(i) for i in inquiries]
 
+def list_open_inquiries_for_user(user_id: int) -> list[InquiryResult]:
+    """Only OPEN inquiries — feeds Organize's "what needs my
+    attention?" view. Closed inquiries are history, not action items.
+    """
+    return [
+        inquiry for inquiry in list_inquiries_for_user(user_id)
+        if inquiry.status == "open"
+    ]
+
+
+def next_to_respond(inquiry: InquiryResult) -> int:
+    """Returns the user_id of whoever should respond next — pure
+    domain logic, independent of any UI wording. A new inquiry with
+    no messages yet means the owner hasn't responded, so the owner is
+    next (per ChatGPT's review, 02.08.: explicit definition for the
+    no-messages edge case)."""
+    if not inquiry.messages:
+        return inquiry.owner_id
+    last_message = inquiry.messages[-1]
+    return inquiry.owner_id if last_message.sender_id == inquiry.requester_id else inquiry.requester_id
+
 
 def open_inquiry(inquiry_id: int, viewer_id: int) -> InquiryResult:
     """Opening an inquiry marks all messages directed AT the viewer

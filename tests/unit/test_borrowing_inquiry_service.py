@@ -169,6 +169,97 @@ def test_open_inquiry_rejects_non_participant(db):
     with pytest.raises(NotAuthorizedError):
         borrowing_inquiry_service.open_inquiry(inquiry.id, viewer_id=outsider_id)
 
+def test_next_to_respond_with_no_messages_returns_owner(db):
+    owner_id = _make_user(db, "owner_next1@example.com")
+    requester_id = _make_user(db, "requester_next1@example.com")
+    book_id = _make_book(db, owner_id, "Book A")
+    inquiry = borrowing_inquiry_service.start_inquiry(book_id, requester_id, "Hi!")
+    # start_inquiry already creates a first message from the requester —
+    # to test the truly empty case, we need a raw inquiry without messages.
+    # Since our service always creates a message on start, this scenario
+    # is only reachable via direct construction:
+    from diodati_debtors.models.borrowing_inquiry import BorrowingInquiry
+    from diodati_debtors.models.enums import InquiryStatus
+    with db() as session:
+        raw_inquiry = BorrowingInquiry(
+            book_id=book_id, requester_id=requester_id, owner_id=owner_id, status=InquiryStatus.OPEN
+        )
+        session.add(raw_inquiry)
+        session.commit()
+        session.refresh(raw_inquiry)
+        raw_inquiry_id = raw_inquiry.id
+
+    result = borrowing_inquiry_service.list_inquiries_for_user(requester_id)
+    empty_inquiry = next(r for r in result if r.id == raw_inquiry_id)
+
+    next_user = borrowing_inquiry_service.next_to_respond(empty_inquiry)
+
+    assert next_user == owner_id
+
+
+def test_next_to_respond_last_message_from_requester_returns_owner(db):
+    owner_id = _make_user(db, "owner_next2@example.com")
+    requester_id = _make_user(db, "requester_next2@example.com")
+    book_id = _make_book(db, owner_id, "Book B")
+    inquiry = borrowing_inquiry_service.start_inquiry(book_id, requester_id, "Hi!")
+
+    next_user = borrowing_inquiry_service.next_to_respond(inquiry)
+
+    assert next_user == owner_id
+
+
+def test_next_to_respond_last_message_from_owner_returns_requester(db):
+    owner_id = _make_user(db, "owner_next3@example.com")
+    requester_id = _make_user(db, "requester_next3@example.com")
+    book_id = _make_book(db, owner_id, "Book C")
+    inquiry = borrowing_inquiry_service.start_inquiry(book_id, requester_id, "Hi!")
+    inquiry = borrowing_inquiry_service.reply(inquiry.id, owner_id, "Sure!")
+
+    next_user = borrowing_inquiry_service.next_to_respond(inquiry)
+
+    assert next_user == requester_id
+
+
+def test_next_to_respond_uses_only_the_last_message(db):
+    owner_id = _make_user(db, "owner_next4@example.com")
+    requester_id = _make_user(db, "requester_next4@example.com")
+    book_id = _make_book(db, owner_id, "Book D")
+    inquiry = borrowing_inquiry_service.start_inquiry(book_id, requester_id, "Hi!")
+    inquiry = borrowing_inquiry_service.reply(inquiry.id, owner_id, "Sure!")
+    inquiry = borrowing_inquiry_service.reply(inquiry.id, requester_id, "Great, thanks!")
+
+    next_user = borrowing_inquiry_service.next_to_respond(inquiry)
+
+    assert next_user == owner_id
+
+
+def test_next_to_respond_works_for_closed_inquiry_too(db):
+    owner_id = _make_user(db, "owner_next5@example.com")
+    requester_id = _make_user(db, "requester_next5@example.com")
+    book_id = _make_book(db, owner_id, "Book E")
+    inquiry = borrowing_inquiry_service.start_inquiry(book_id, requester_id, "Hi!")
+    borrowing_inquiry_service.close_inquiry(inquiry.id, closer_id=requester_id)
+
+    # next_to_respond doesn't know/care about status — it's a pure
+    # "who spoke last" calculation, regardless of open/closed.
+    next_user = borrowing_inquiry_service.next_to_respond(inquiry)
+
+    assert next_user == owner_id
+
+
+def test_list_open_inquiries_for_user_excludes_closed(db):
+    owner_id = _make_user(db, "owner_next6@example.com")
+    requester_id = _make_user(db, "requester_next6@example.com")
+    book_a = _make_book(db, owner_id, "Book F")
+    book_b = _make_book(db, owner_id, "Book G")
+    open_inquiry = borrowing_inquiry_service.start_inquiry(book_a, requester_id, "Hi!")
+    closed_inquiry = borrowing_inquiry_service.start_inquiry(book_b, requester_id, "Hi!")
+    borrowing_inquiry_service.close_inquiry(closed_inquiry.id, closer_id=requester_id)
+
+    results = borrowing_inquiry_service.list_open_inquiries_for_user(requester_id)
+
+    assert {r.id for r in results} == {open_inquiry.id}
+
 
 def test_borrowing_inquiry_service_has_no_reflex_dependency():
     with open(borrowing_inquiry_service.__file__, encoding="utf-8") as f:

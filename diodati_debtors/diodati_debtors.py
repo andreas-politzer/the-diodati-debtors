@@ -25,9 +25,7 @@ from .ui.pages.reviews import reviews
 from .ui.pages.synopsis import synopsis
 from .ui.pages.book_discussion import book_discussion
 from .ui.pages.communication import communication
-from .state.communication_state import CommunicationState
 from .ui.pages.club_conversation_detail import club_conversation_detail
-from .state.club_conversation_detail_state import ClubConversationDetailState
 from .ui.pages.lent_out_books import lent_out_books
 from .ui.pages.lend_to_contact import lend_to_contact
 from .ui.pages.manual import manual
@@ -35,6 +33,10 @@ from .ui.pages.librarian import librarian
 from .ui.pages.import_books import import_books
 from .ui.pages.profile import profile
 from .ui.pages.personal_messages import personal_messages
+from .ui.pages.borrowing_inquiry_detail import borrowing_inquiry_detail
+from .state.borrowing_inquiry_detail_state import BorrowingInquiryDetailState
+from .state.club_conversation_detail_state import ClubConversationDetailState
+from .state.communication_state import CommunicationState
 from .state.personal_messages_state import PersonalMessagesState
 from .state.profile_state import ProfileState
 from .state.bulk_import_state import BulkImportState
@@ -187,6 +189,11 @@ app.add_page(
     club_conversation_detail,
     route="/club-conversation/[conversation_id]",
     on_load=[AuthState.check_auth, ClubConversationDetailState.load_conversation],
+)
+app.add_page(
+    borrowing_inquiry_detail,
+    route="/borrowing-inquiry/[inquiry_id]",
+    on_load=[AuthState.check_auth, BorrowingInquiryDetailState.load_inquiry],
 )
 app.add_page(
     lent_out_books,

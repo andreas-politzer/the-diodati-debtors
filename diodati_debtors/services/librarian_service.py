@@ -28,6 +28,8 @@ from .group_service import get_visible_owner_ids
 from ..db.session import get_session
 from ..models.book import Book
 from ..models.group import GroupMembership
+from ..models.enums import BorrowingVisibility, ProfileVisibility
+from ..models.user_profile import UserProfile
 from .external.gemini_client import embed_text, generate_text
 from .book_service import search_books
 
@@ -48,11 +50,15 @@ class LibrarianMatch:
 @dataclass(frozen=True)
 class RestrictedHint:
     """A good match exists, but outside the requester's visible scope.
-    Only club_name is revealed today — deliberately a value object
-    (not a plain string) so it can grow later (e.g. invite_possible,
-    member_count) without changing the public API."""
+    club_name is always revealed. book_id/allows_public_inquiry are
+    populated only if the book's owner has explicitly opted into
+    public borrowing enquiries (per the Personal Messages domain
+    session, project vault) — Byron never reveals book identity
+    otherwise, staying true to the discretion principle."""
 
     club_name: str
+    book_id: int | None = None
+    allows_public_inquiry: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -105,13 +111,29 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 
 def _restricted_hint_for(session, book: Book, requester_id: int, requester_group_ids: set[int]) -> RestrictedHint | None:
     """Which club (if any) the requester could join to see this book —
-    reveals only the club name, never the book or its owner."""
+    reveals only the club name, never the book identity or owner,
+    UNLESS the owner has explicitly opted this specific book into
+    public borrowing enquiries — in that case, the book's own ID is
+    additionally revealed, enabling a "Send borrowing request" path
+    that bypasses club membership entirely (per the Personal Messages
+    domain session, project vault: "Byron vermittelt Bücher, keine
+    Menschen" — the book, not the person, decides this).
+    """
     owner_memberships = session.scalars(
         select(GroupMembership).where(GroupMembership.user_id == book.owner_id)
     ).all()
     for membership in owner_memberships:
         if membership.group_id not in requester_group_ids:
-            return RestrictedHint(club_name=membership.group.name)
+            allows_inquiry = False
+            if book.borrowing_visibility == BorrowingVisibility.PUBLIC_ENQUIRIES_ALLOWED:
+                owner_profile = session.query(UserProfile).filter_by(user_id=book.owner_id).first()
+                if owner_profile is None or owner_profile.visibility != ProfileVisibility.PRIVATE:
+                    allows_inquiry = True
+            return RestrictedHint(
+                club_name=membership.group.name,
+                book_id=book.id if allows_inquiry else None,
+                allows_public_inquiry=allows_inquiry,
+            )
     return None
 
 def _direct_metadata_matches(session, query: str) -> list[Book]:

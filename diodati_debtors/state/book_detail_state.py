@@ -356,6 +356,7 @@ class BookDetailState(rx.State):
                         if form_data.get("genre", "") in ("", "—")
                         else form_data.get("genre")
                     ),
+                    borrowing_visibility=form_data.get("borrowing_visibility") or None,
                 )
                 self.info_message = "Book added."
         except DiodatiError as e:

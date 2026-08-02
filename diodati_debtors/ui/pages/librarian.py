@@ -96,11 +96,41 @@ def librarian() -> rx.Component:
                     rx.fragment(
                         rx.cond(
                             LibrarianState.restricted_club_name != "",
-                            body_text(
-                                f"The librarian knows of a match, but it belongs to a "
-                                f"club you haven't joined yet: "
-                                f"{LibrarianState.restricted_club_name}. Ask to join, "
-                                f"and you may find your answer there."
+                            rx.vstack(
+                                body_text(
+                                    f"The librarian knows of a match, but it belongs to a "
+                                    f"club you haven't joined yet: "
+                                    f"{LibrarianState.restricted_club_name}. Ask to join, "
+                                    f"and you may find your answer there."
+                                ),
+                                rx.cond(
+                                    LibrarianState.restricted_allows_inquiry,
+                                    rx.cond(
+                                        LibrarianState.inquiry_sent,
+                                        meta_text("Your borrowing request has been sent."),
+                                        rx.vstack(
+                                            meta_text(
+                                                "The owner has chosen to accept direct "
+                                                "borrowing enquiries for this book."
+                                            ),
+                                            rx.form(
+                                                rx.vstack(
+                                                    rx.input(
+                                                        placeholder="A short message...",
+                                                        value=LibrarianState.inquiry_message_draft,
+                                                        on_change=LibrarianState.set_inquiry_message_draft,
+                                                    ),
+                                                    primary_button("Send borrowing request", type="submit"),
+                                                    spacing="2",
+                                                ),
+                                                on_submit=LibrarianState.send_borrowing_inquiry,
+                                            ),
+                                            spacing="2",
+                                            margin_top="0.5rem",
+                                        ),
+                                    ),
+                                ),
+                                spacing="2",
                             ),
                         ),
                         rx.cond(

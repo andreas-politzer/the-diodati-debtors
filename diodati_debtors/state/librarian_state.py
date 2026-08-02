@@ -14,7 +14,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from ..core.exceptions import DiodatiError
-from ..services import librarian_service
+from ..services import borrowing_inquiry_service, librarian_service
 from .auth_state import AuthState
 
 
@@ -39,35 +39,33 @@ class LibrarianState(rx.State):
     has_searched: bool = False
     matches: list[MatchView] = []
     restricted_club_name: str = ""
+    restricted_book_id: int = 0
+    restricted_allows_inquiry: bool = False
 
     external_books: list[ExternalBookView] = []
     external_remark: str = ""
+
+    inquiry_message_draft: str = ""
+    inquiry_sent: bool = False
 
     error_message: str = ""
 
     def set_query(self, value: str):
         self.query = value
 
-    @rx.var
-    def external_books_copy_text(self) -> str:
-        """Plain-text version of the external recommendations, for the
-        "Continue your search" copy block — lets the user paste it
-        into any search engine, library catalogue, or bookshop of
-        their choice, per the "no external links, stay platform-
-        independent" design decision (project vault)."""
-        lines = [
-            f"{b.title} — {b.author}" if b.author else b.title
-            for b in self.external_books
-        ]
-        return "\n".join(lines)
+    def set_inquiry_message_draft(self, value: str):
+        self.inquiry_message_draft = value
 
     async def ask(self):
         self.error_message = ""
         self.has_searched = True
         self.matches = []
         self.restricted_club_name = ""
+        self.restricted_book_id = 0
+        self.restricted_allows_inquiry = False
         self.external_books = []
         self.external_remark = ""
+        self.inquiry_sent = False
 
         auth_state = await self.get_state(AuthState)
         if not auth_state.is_logged_in:
@@ -111,6 +109,9 @@ class LibrarianState(rx.State):
 
         if result.restricted_hint:
             self.restricted_club_name = result.restricted_hint.club_name
+            if result.restricted_hint.allows_public_inquiry and result.restricted_hint.book_id:
+                self.restricted_book_id = result.restricted_hint.book_id
+                self.restricted_allows_inquiry = True
 
         logger.info("Librarian: starting get_external_recommendation")
         try:
@@ -133,11 +134,39 @@ class LibrarianState(rx.State):
                 )
                 for b in recommendation.books
             ]
-        else:
-            self.external_remark = (
-                "Pray forgive me, the couriers to our outer catalogues seem "
-                "to be caught in some manner of storm. Do try again in a moment."
+
+    async def send_borrowing_inquiry(self):
+        self.error_message = ""
+        if not self.inquiry_message_draft.strip():
+            self.error_message = "Write a short message first."
+            return
+
+        auth_state = await self.get_state(AuthState)
+        try:
+            borrowing_inquiry_service.start_inquiry(
+                self.restricted_book_id,
+                int(auth_state.current_user_id),
+                self.inquiry_message_draft,
             )
+        except DiodatiError as e:
+            self.error_message = str(e)
+            return
+
+        self.inquiry_sent = True
+        self.inquiry_message_draft = ""
+
+    @rx.var
+    def external_books_copy_text(self) -> str:
+        """Plain-text version of the external recommendations, for the
+        "Continue your search" copy block — lets the user paste it
+        into any search engine, library catalogue, or bookshop of
+        their choice, per the "no external links, stay platform-
+        independent" design decision."""
+        lines = [
+            f"{b.title} — {b.author}" if b.author else b.title
+            for b in self.external_books
+        ]
+        return "\n".join(lines)
 
 
 __all__ = ["LibrarianState", "MatchView", "ExternalBookView"]

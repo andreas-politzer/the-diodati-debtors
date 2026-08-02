@@ -120,17 +120,16 @@ def create_book(
     isbn: str | None = None,
     location: str | None = None,
     genre: str | None = None,
+    borrowing_visibility: str | None = None,
 ) -> BookResult:
     """Raises: NotFoundError, InvalidBookDataError."""
     stripped_title = blank_to_none(title)
     if stripped_title is None:
         raise InvalidBookDataError("Book title must not be blank.")
-
     with get_session() as session:
         owner = session.get(User, owner_id)
         if owner is None:
             raise NotFoundError(f"User {owner_id} does not exist.")
-
         book = Book(
             owner_id=owner_id,
             title=stripped_title,
@@ -138,6 +137,7 @@ def create_book(
             isbn=blank_to_none(isbn),
             location=blank_to_none(location),
             genre=BookGenre(genre) if genre else None,
+            borrowing_visibility=BorrowingVisibility(borrowing_visibility) if borrowing_visibility else BorrowingVisibility.CLUB_ONLY,
         )
         session.add(book)
         session.flush()

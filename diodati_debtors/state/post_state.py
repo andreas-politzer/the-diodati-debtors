@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 import reflex as rx
 
 from ..core.exceptions import DiodatiError
-from ..services import comment_service, post_service, profile_service, user_service
+from ..services import comment_service, post_service, profile_service, read_tracking_service, user_service
 from .auth_state import AuthState
 from .group_state import GroupState
 
@@ -31,6 +31,7 @@ class CommentView:
     content: str
     is_own: bool = False
     author_profile_public: bool = False
+    is_unread: bool = False
 
 
 @dataclass
@@ -43,6 +44,7 @@ class PostView:
     is_own: bool = False
     comments: list[CommentView] = field(default_factory=list)
     author_profile_public: bool = False
+    is_unread: bool = False
 
 
 class PostState(rx.State):
@@ -86,6 +88,17 @@ class PostState(rx.State):
             all_author_ids.update(c.author_id for c in comments)
         public_profile_ids = profile_service.get_public_profile_user_ids(list(all_author_ids))
 
+        all_post_ids = [post.id for post in post_results]
+        all_comment_ids = [
+            c.id for comments in comment_results_by_post.values() for c in comments
+        ]
+        if current_user_id is not None:
+            unread_post_ids = read_tracking_service.get_unread_post_ids(current_user_id, all_post_ids)
+            unread_comment_ids = read_tracking_service.get_unread_comment_ids(current_user_id, all_comment_ids)
+        else:
+            unread_post_ids = set()
+            unread_comment_ids = set()
+
         views: list[PostView] = []
         for post in post_results:
             comment_results = comment_results_by_post.get(post.id, [])
@@ -97,6 +110,7 @@ class PostState(rx.State):
                     content=c.content,
                     is_own=(c.author_id == current_user_id),
                     author_profile_public=(c.author_id in public_profile_ids),
+                    is_unread=(c.id in unread_comment_ids and c.author_id != current_user_id),
                 )
                 for c in comment_results
             ]
@@ -110,9 +124,18 @@ class PostState(rx.State):
                     is_own=(post.author_id == current_user_id),
                     comments=comments,
                     author_profile_public=(post.author_id in public_profile_ids),
+                    is_unread=(post.id in unread_post_ids and post.author_id != current_user_id),
                 )
             )
+
+        if current_user_id is not None:
+            for post_id in all_post_ids:
+                read_tracking_service.mark_post_read(post_id, current_user_id)
+            for comment_id in all_comment_ids:
+                read_tracking_service.mark_comment_read(comment_id, current_user_id)
+
         return views
+    
     async def load_board(self):
         self.error_message = ""
         try:

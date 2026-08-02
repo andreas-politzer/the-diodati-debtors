@@ -17,6 +17,7 @@ from ..tokens import Color, Font, Type
 from ...state.organize_state import (
     JoinRequestView,
     LoanRequestView,
+    OpenInquiryView,
     OrganizeState,
     SentJoinRequestView,
     SentLoanRequestView,
@@ -76,6 +77,18 @@ def _loan_request_card(request: LoanRequestView) -> rx.Component:
             spacing="3",
             margin_top="0.5rem",
         ),
+    )
+
+def _open_inquiry_card(inquiry) -> rx.Component:
+    return card(
+        body_text(f"Re: {inquiry.book_title}"),
+        meta_text(f"With {inquiry.other_person_name}"),
+        rx.cond(
+            inquiry.waiting_on_you,
+            body_text("Waiting for you", font_weight="700"),
+            meta_text(f"Waiting for {inquiry.other_person_name}"),
+        ),
+        rx.link("☞ View conversation", href=f"/borrowing-inquiry/{inquiry.id}", margin_top="0.5rem", display="block"),
     )
 
 
@@ -212,6 +225,18 @@ def organize() -> rx.Component:
                 width="100%",
             ),
             body_text("No pending loan requests."),
+        ),
+        divider(),
+        page_title("Borrowing Inquiries"),
+        rx.cond(
+            OrganizeState.open_inquiries.length() > 0,
+            rx.grid(
+                rx.foreach(OrganizeState.open_inquiries, _open_inquiry_card),
+                columns="repeat(auto-fill, minmax(280px, 1fr))",
+                gap="1rem",
+                width="100%",
+            ),
+            body_text("No open borrowing inquiries."),
         ),
         divider(),
         page_title("Your Pending Requests"),

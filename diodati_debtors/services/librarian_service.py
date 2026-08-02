@@ -114,42 +114,77 @@ def _restricted_hint_for(session, book: Book, requester_id: int, requester_group
             return RestrictedHint(club_name=membership.group.name)
     return None
 
-def _direct_title_matches(session, query: str, visible_owner_ids: set[int]) -> list[Book]:
-    """Exact (case-insensitive) title containment — catches direct
-    "do you have X?" questions that pure semantic similarity can
-    under-score, since embeddings are built from a book's synopsis
-    text, not from its title. No typo tolerance — that would need
-    fuzzy matching, a separate, bigger addition."""
+def _direct_metadata_matches(session, query: str) -> list[Book]:
+    """Exact (case-insensitive) title, author, or ISBN containment —
+    catches direct structured-metadata questions ("do you have X?",
+    "books by Y?", "do we have ISBN ...?") that pure semantic
+    similarity can under-score, since embeddings describe a book's
+    CONTENT (mood, themes, setting), not its bibliographic metadata.
+
+    Searches the ENTIRE platform, not just visible books — the
+    visible/hidden distinction with a club hint happens one level up,
+    in ask_librarian (per the 02.08. fix).
+
+    Genre is deliberately excluded — genre questions usually blend
+    into semantic recommendations. No typo tolerance — that would
+    need fuzzy matching, a separate, bigger addition. Filtered in
+    Python rather than SQL LIKE, since we need "is this book's
+    title/author/ISBN a SUBSTRING of the user's (often long,
+    natural-language) query" — the reverse of what a simple SQL LIKE
+    with wildcards checks.
+    """
     query_lower = query.lower()
-    visible_books = session.scalars(
-        select(Book).where(Book.owner_id.in_(visible_owner_ids))
-    ).all()
-    return [b for b in visible_books if b.title and b.title.lower() in query_lower]
+    all_books = session.scalars(select(Book)).all()
+    return [
+        b for b in all_books
+        if (b.title and b.title.lower() in query_lower)
+        or (b.author and b.author.lower() in query_lower)
+        or (b.isbn and b.isbn.lower() in query_lower)
+    ]
 
 
 def ask_librarian(query: str, requester_id: int) -> LibrarianResult:
     """The core "Ask the Librarian" search. Never raises for a "no
     match" outcome — that's a valid result, not an error. Network/API
     failures still propagate as their own natural exception.
+
+    Byron now knows three tiers (per the 02.08. Structured Retrieval
+    fix): Visible (shown directly), Restricted (hinted via club name,
+    never revealed by title/owner), External (Google Books/Gemini
+    fallback). Structured metadata search (title/author/ISBN) runs
+    platform-wide FIRST, exactly like semantic search — a book that
+    exists but belongs to another club must produce a restricted
+    hint, not silently fall through to an external search that
+    duplicates what's already on the platform.
     """
-   
     visible_owner_ids = get_visible_owner_ids(requester_id)
 
     with get_session() as session:
-        direct_matches = _direct_title_matches(session, query, visible_owner_ids)
-        if direct_matches:
+        direct_matches = _direct_metadata_matches(session, query)
+
+        visible_direct = [b for b in direct_matches if b.owner_id in visible_owner_ids]
+        if visible_direct:
             matches = [
                 LibrarianMatch(book_id=b.id, title=b.title, author=b.author, similarity=1.0)
-                for b in direct_matches[:5]
+                for b in visible_direct[:5]
             ]
             return LibrarianResult(matches=matches, restricted_hint=None)
 
-        query_vector = embed_text(query, task_type="RETRIEVAL_QUERY")
+        hidden_direct = [b for b in direct_matches if b.owner_id not in visible_owner_ids]
+        if hidden_direct:
+            requester_group_ids = {
+                m.group_id
+                for m in session.scalars(
+                    select(GroupMembership).where(GroupMembership.user_id == requester_id)
+                ).all()
+            }
+            hint = _restricted_hint_for(session, hidden_direct[0], requester_id, requester_group_ids)
+            return LibrarianResult(matches=[], restricted_hint=hint)
 
+        query_vector = embed_text(query, task_type="RETRIEVAL_QUERY")
         all_embedded_books = session.scalars(
             select(Book).where(Book.embedding.is_not(None))
         ).all()
-
         scored = []
         for book in all_embedded_books:
             vector = json.loads(book.embedding)
@@ -182,7 +217,6 @@ def ask_librarian(query: str, requester_id: int) -> LibrarianResult:
             }
             _, best_book = hidden_good_matches[0]
             hint = _restricted_hint_for(session, best_book, requester_id, requester_group_ids)
-
         return LibrarianResult(matches=[], restricted_hint=hint)
     
 def get_match_remark(query: str, matches: list[LibrarianMatch]) -> str:

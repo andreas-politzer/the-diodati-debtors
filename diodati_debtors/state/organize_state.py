@@ -1,12 +1,17 @@
 """Organize state — the central inbox for pending decisions the
 current user must act on: join requests for clubs they founded, loan
-requests for books they own, plus their own sent requests once decided
-(shown as a prominent, dismissible notification until acknowledged).
+requests for books they own, open Borrowing Inquiries, plus their own
+sent requests once decided (shown as a prominent, dismissible
+notification until acknowledged).
 
 Per the design notes (project vault): intentionally generic, thinks
 in terms of "pending decisions", not "club management" / "book
 management" — scales to future request types (invitations,
 reservations, ...) without restructuring.
+
+Borrowing Inquiry deliberately lives here, not in Personal Messages
+(see Personal Messages Domain Model, project vault, 02.08.): it's
+vorgangs-/book-bound, not personen-bound.
 """
 
 from __future__ import annotations
@@ -16,7 +21,14 @@ from dataclasses import dataclass
 import reflex as rx
 
 from ..core.exceptions import DiodatiError
-from ..services import book_service, group_service, loan_service, trust_service, user_service
+from ..services import (
+    book_service,
+    borrowing_inquiry_service,
+    group_service,
+    loan_service,
+    trust_service,
+    user_service,
+)
 from .auth_state import AuthState
 
 
@@ -60,11 +72,20 @@ class SentJoinRequestView:
     response_read: bool = False
 
 
+@dataclass
+class OpenInquiryView:
+    id: int
+    book_title: str
+    other_person_name: str
+    waiting_on_you: bool
+
+
 class OrganizeState(rx.State):
     join_requests: list[JoinRequestView] = []
     loan_requests: list[LoanRequestView] = []
     sent_requests: list[SentLoanRequestView] = []
     sent_join_requests: list[SentJoinRequestView] = []
+    open_inquiries: list[OpenInquiryView] = []
     error_message: str = ""
     info_message: str = ""
     pending_response_request_id: int = 0
@@ -77,6 +98,7 @@ class OrganizeState(rx.State):
         if not auth_state.is_logged_in:
             self.join_requests = []
             self.loan_requests = []
+            self.open_inquiries = []
             return
         user_id = int(auth_state.current_user_id)
 
@@ -127,6 +149,36 @@ class OrganizeState(rx.State):
                 )
             )
         self.loan_requests = loan_views
+
+        try:
+            inquiries = borrowing_inquiry_service.list_open_inquiries_for_user(user_id)
+        except DiodatiError:
+            inquiries = []
+
+        inquiry_views: list[OpenInquiryView] = []
+        for inquiry in inquiries:
+            other_id = (
+                inquiry.owner_id if inquiry.requester_id == user_id else inquiry.requester_id
+            )
+            try:
+                other_name = user_service.get_user(other_id).display_name
+            except DiodatiError:
+                other_name = f"User {other_id}"
+            try:
+                book_title = book_service.get_book(inquiry.book_id).title
+            except DiodatiError:
+                book_title = f"Book {inquiry.book_id}"
+            next_user_id = borrowing_inquiry_service.next_to_respond(inquiry)
+            inquiry_views.append(
+                OpenInquiryView(
+                    id=inquiry.id,
+                    book_title=book_title,
+                    other_person_name=other_name,
+                    waiting_on_you=(next_user_id == user_id),
+                )
+            )
+        self.open_inquiries = inquiry_views
+
         await self.load_sent_requests()
         await self.load_sent_join_requests()
 
@@ -231,7 +283,8 @@ class OrganizeState(rx.State):
     async def load_pending_count(self):
         """Both "decisions I need to make" (as owner/founder) and
         "responses to my own requests I haven't acknowledged yet" —
-        one combined number next to "Organize" in the nav.
+        one combined number next to "Organize" in the nav. Borrowing
+        Inquiries waiting on this user also count.
         """
         auth_state = await self.get_state(AuthState)
         if not auth_state.is_logged_in:
@@ -243,6 +296,7 @@ class OrganizeState(rx.State):
             loan_count = len(loan_service.list_pending_loan_requests_for_owner(user_id))
             sent_loan = loan_service.list_loan_requests_for_requester(user_id)
             sent_join = group_service.list_join_requests_for_requester(user_id)
+            open_inquiries = borrowing_inquiry_service.list_open_inquiries_for_user(user_id)
         except DiodatiError:
             self.pending_count = 0
             return
@@ -251,7 +305,11 @@ class OrganizeState(rx.State):
         ) + sum(
             1 for r in sent_join if r.status != "pending" and not r.response_read
         )
-        self.pending_count = join_count + loan_count + unread_count
+        waiting_on_you_count = sum(
+            1 for inquiry in open_inquiries
+            if borrowing_inquiry_service.next_to_respond(inquiry) == user_id
+        )
+        self.pending_count = join_count + loan_count + unread_count + waiting_on_you_count
 
     async def load_sent_requests(self):
         auth_state = await self.get_state(AuthState)
@@ -346,4 +404,5 @@ __all__ = [
     "LoanRequestView",
     "SentLoanRequestView",
     "SentJoinRequestView",
+    "OpenInquiryView",
 ]

@@ -28,9 +28,8 @@ class InquiryMessageView:
 
 
 class BorrowingInquiryDetailState(rx.State):
-    inquiry_id: str = ""
     loaded_inquiry_id: int = 0
-    book_id: int = 0
+    loaded_book_id: int = 0
     book_title: str = ""
     other_person_id: int = 0
     other_person_name: str = ""
@@ -72,7 +71,7 @@ class BorrowingInquiryDetailState(rx.State):
             return
 
         self.loaded_inquiry_id = result.id
-        self.book_id = result.book_id
+        self.loaded_book_id = result.book_id
         self.status = result.status
         self.other_person_id = (
             result.owner_id if result.requester_id == current_user_id else result.requester_id

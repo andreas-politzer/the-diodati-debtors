@@ -141,6 +141,7 @@ def create_book(
         )
         session.add(book)
         session.flush()
+        _compute_and_store_embedding(session, book)
         return _to_result(book)
     
 def lookup_isbn(isbn: str) -> BookMetadataResult:

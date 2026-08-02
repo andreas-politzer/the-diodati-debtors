@@ -24,6 +24,7 @@ def _comment_row(comment: CommentView) -> rx.Component:
             meta_text(comment.author_name),
         ),
         body_text(comment.content),
+        meta_text(comment.created_at),
         rx.cond(
             comment.is_own,
             primary_button("Delete", on_click=lambda: PostState.delete_comment(comment.id)),
@@ -40,6 +41,7 @@ def _post_card(post: PostView) -> rx.Component:
             rx.link(post.author_name, href=f"/members/{post.author_id}"),
             meta_text(post.author_name),
         ),
+        meta_text(post.created_at),
         body_text(post.content),
         rx.cond(
             post.is_own,

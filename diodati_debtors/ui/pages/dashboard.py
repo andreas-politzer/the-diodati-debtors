@@ -217,8 +217,8 @@ def dashboard() -> rx.Component:
                     rx.hstack(
                         rx.text("☞ Communication"),
                         rx.cond(
-                            CommunicationState.unread_count > 0,
-                            rx.text(f"({CommunicationState.unread_count})", color=Color.accent, font_weight="700"),
+                            CommunicationState.total_unread_count > 0,
+                            rx.text(f"({CommunicationState.total_unread_count})", color=Color.accent, font_weight="700"),
                         ),
                         spacing="1",
                     ),

@@ -21,6 +21,7 @@ from ..core.exceptions import DiodatiError
 from ..services import comment_service, post_service, profile_service, read_tracking_service, user_service
 from .auth_state import AuthState
 from .group_state import GroupState
+from ..core.formatting import format_datetime_human
 
 
 @dataclass
@@ -29,6 +30,7 @@ class CommentView:
     author_id: int
     author_name: str
     content: str
+    created_at: str
     is_own: bool = False
     author_profile_public: bool = False
     is_unread: bool = False
@@ -41,6 +43,7 @@ class PostView:
     author_name: str
     content: str
     post_type: str
+    created_at: str
     is_own: bool = False
     comments: list[CommentView] = field(default_factory=list)
     author_profile_public: bool = False
@@ -108,6 +111,7 @@ class PostState(rx.State):
                     author_id=c.author_id,
                     author_name=names_by_id.get(c.author_id, f"User {c.author_id}"),
                     content=c.content,
+                    created_at=format_datetime_human(c.created_at),
                     is_own=(c.author_id == current_user_id),
                     author_profile_public=(c.author_id in public_profile_ids),
                     is_unread=(c.id in unread_comment_ids and c.author_id != current_user_id),
@@ -121,6 +125,7 @@ class PostState(rx.State):
                     author_name=names_by_id.get(post.author_id, f"User {post.author_id}"),
                     content=post.content,
                     post_type=post.post_type,
+                    created_at=format_datetime_human(post.created_at),
                     is_own=(post.author_id == current_user_id),
                     comments=comments,
                     author_profile_public=(post.author_id in public_profile_ids),

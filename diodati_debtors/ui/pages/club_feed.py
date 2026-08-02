@@ -30,6 +30,7 @@ def _comment_row(comment: CommentView) -> rx.Component:
             meta_text(comment.author_name),
         ),
         body_text(comment.content),
+        meta_text(comment.created_at),
         rx.cond(
             comment.is_own,
             primary_button(
@@ -52,6 +53,7 @@ def _post_card(post: PostView) -> rx.Component:
             rx.cond(post.post_type == "announcement", rx.text("𓅃", font_size="1.2rem")),
             spacing="2",
         ),
+        meta_text(post.created_at),
         body_text(post.content),
         rx.cond(
             post.is_own,

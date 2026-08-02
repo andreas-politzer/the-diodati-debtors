@@ -34,6 +34,8 @@ from .ui.pages.manual import manual
 from .ui.pages.librarian import librarian
 from .ui.pages.import_books import import_books
 from .ui.pages.profile import profile
+from .ui.pages.personal_messages import personal_messages
+from .state.personal_messages_state import PersonalMessagesState
 from .state.profile_state import ProfileState
 from .state.bulk_import_state import BulkImportState
 from .state.librarian_state import LibrarianState
@@ -118,7 +120,7 @@ app.add_page(
         LoanActivityState.load_borrowed_books,
         LoanActivityState.load_lent_out_books,
         OrganizeState.load_pending_count,
-        CommunicationState.load_unread_count,
+        CommunicationState.load_hub,
     ],
 )
 app.add_page(
@@ -174,7 +176,12 @@ app.add_page(
 app.add_page(
     communication,
     route="/communication",
-    on_load=[AuthState.check_auth, CommunicationState.load_rows],
+    on_load=[AuthState.check_auth, CommunicationState.load_hub],
+)
+app.add_page(
+    personal_messages,
+    route="/personal-messages",
+    on_load=[AuthState.check_auth, PersonalMessagesState.load_entries],
 )
 app.add_page(
     club_conversation_detail,

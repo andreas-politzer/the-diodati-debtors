@@ -15,7 +15,7 @@ from .contact import Contact
 from .user_profile import UserProfile
 from .borrowing_inquiry import BorrowingInquiry, BorrowingInquiryMessage
 from .club_conversation import ClubConversation, ClubConversationMessage
-
+from .post_read import PostRead, CommentRead
 __all__ = [
     "User",
     "Group",
@@ -31,4 +31,5 @@ __all__ = [
      "UserProfile",
      "BorrowingInquiryMessage",
      "ClubConversationMessage",
+     "CommentRead",
 ]

@@ -30,7 +30,6 @@ def test_engine():
     Base.metadata.drop_all(engine)
     engine.dispose()
 
-
 @pytest.fixture()
 def db(test_engine, monkeypatch):
     """Point db.session.SessionLocal at the isolated test engine for
@@ -41,3 +40,25 @@ def db(test_engine, monkeypatch):
     )
     monkeypatch.setattr(db_session, "SessionLocal", test_session_local)
     yield test_session_local
+
+@pytest.fixture(autouse=True)
+def mock_gemini_generate_text(monkeypatch):
+    """Prevents real Gemini API calls during tests — book_service.
+    create_book now always computes an embedding (02.08. fix), which
+    internally calls generate_text (fallback description) AND
+    embed_text (the actual vector) when no summary exists. Without
+    this mock, every test using create_book (63+ call sites) makes
+    real, slow API calls. Tests that specifically need to control
+    generate_text/embed_text's return value can still override this
+    mock locally via their own monkeypatch.setattr call.
+    """
+    import diodati_debtors.services.book_service as book_service_module
+
+    def fake_generate_text(prompt: str) -> str:
+        return "A book, for testing purposes."
+
+    def fake_embed_text(text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> list[float]:
+        return [0.1] * 768
+
+    monkeypatch.setattr(book_service_module, "generate_text", fake_generate_text)
+    monkeypatch.setattr(book_service_module, "embed_text", fake_embed_text)

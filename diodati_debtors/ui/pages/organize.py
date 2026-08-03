@@ -84,6 +84,10 @@ def _open_inquiry_card(inquiry) -> rx.Component:
         body_text(f"Re: {inquiry.book_title}"),
         meta_text(f"With {inquiry.other_person_name}"),
         rx.cond(
+            inquiry.last_message_preview != "",
+            body_text(inquiry.last_message_preview),
+        ),
+        rx.cond(
             inquiry.waiting_on_you,
             body_text("Waiting for you", font_weight="700"),
             meta_text(f"Waiting for {inquiry.other_person_name}"),

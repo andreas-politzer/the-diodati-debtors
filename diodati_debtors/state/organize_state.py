@@ -72,12 +72,12 @@ class SentJoinRequestView:
     response_read: bool = False
 
 
-@dataclass
 class OpenInquiryView:
     id: int
     book_title: str
     other_person_name: str
     waiting_on_you: bool
+    last_message_preview: str
 
 
 class OrganizeState(rx.State):
@@ -169,12 +169,18 @@ class OrganizeState(rx.State):
             except DiodatiError:
                 book_title = f"Book {inquiry.book_id}"
             next_user_id = borrowing_inquiry_service.next_to_respond(inquiry)
+            last_message_preview = ""
+            if inquiry.messages:
+                last_message = inquiry.messages[-1]
+                prefix = "You: " if last_message.sender_id == user_id else ""
+                last_message_preview = f'{prefix}"{last_message.content[:80]}"'
             inquiry_views.append(
                 OpenInquiryView(
                     id=inquiry.id,
                     book_title=book_title,
                     other_person_name=other_name,
                     waiting_on_you=(next_user_id == user_id),
+                    last_message_preview=last_message_preview,
                 )
             )
         self.open_inquiries = inquiry_views

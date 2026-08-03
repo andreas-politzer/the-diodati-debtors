@@ -97,11 +97,20 @@ def librarian() -> rx.Component:
                         rx.cond(
                             LibrarianState.restricted_club_name != "",
                             rx.vstack(
-                                body_text(
-                                    f"The librarian knows of a match, but it belongs to a "
-                                    f"club you haven't joined yet: "
-                                    f"{LibrarianState.restricted_club_name}. Ask to join, "
-                                    f"and you may find your answer there."
+                                rx.cond(
+                                    LibrarianState.restricted_allows_inquiry,
+                                    body_text(
+                                        f"The librarian knows of a match within "
+                                        f"{LibrarianState.restricted_club_name} — and its "
+                                        f"owner has chosen to make it available for public "
+                                        f"borrowing enquiries."
+                                    ),
+                                    body_text(
+                                        f"The librarian knows of a match, but it belongs to a "
+                                        f"club you haven't joined yet: "
+                                        f"{LibrarianState.restricted_club_name}. Ask to join, "
+                                        f"and you may find your answer there."
+                                    ),
                                 ),
                                 rx.cond(
                                     LibrarianState.restricted_allows_inquiry,

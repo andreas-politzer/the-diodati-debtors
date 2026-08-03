@@ -71,13 +71,14 @@ class SentJoinRequestView:
     response_message: str | None = None
     response_read: bool = False
 
-
+@dataclass
 class OpenInquiryView:
     id: int
     book_title: str
     other_person_name: str
     waiting_on_you: bool
     last_message_preview: str
+    viewer_is_owner: bool
 
 
 class OrganizeState(rx.State):
@@ -181,6 +182,7 @@ class OrganizeState(rx.State):
                     other_person_name=other_name,
                     waiting_on_you=(next_user_id == user_id),
                     last_message_preview=last_message_preview,
+                    viewer_is_owner=(inquiry.owner_id == user_id),
                 )
             )
         self.open_inquiries = inquiry_views

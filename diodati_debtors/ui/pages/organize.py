@@ -81,15 +81,24 @@ def _loan_request_card(request: LoanRequestView) -> rx.Component:
 
 def _open_inquiry_card(inquiry) -> rx.Component:
     return card(
-        body_text(f"Re: {inquiry.book_title}"),
-        meta_text(f"With {inquiry.other_person_name}"),
+        meta_text(f"Book: {inquiry.book_title}"),
         rx.cond(
             inquiry.last_message_preview != "",
-            body_text(inquiry.last_message_preview),
+            rx.hstack(
+                meta_text("Message:"),
+                body_text(inquiry.last_message_preview),
+                spacing="1",
+                align="baseline",
+            ),
+        ),
+        rx.cond(
+            inquiry.viewer_is_owner,
+            meta_text(f"Inquiry from: {inquiry.other_person_name}"),
+            meta_text(f"Owned by: {inquiry.other_person_name}"),
         ),
         rx.cond(
             inquiry.waiting_on_you,
-            body_text("Waiting for you", font_weight="700"),
+            meta_text("Waiting for you", font_weight="700"),
             meta_text(f"Waiting for {inquiry.other_person_name}"),
         ),
         rx.link("☞ View conversation", href=f"/borrowing-inquiry/{inquiry.id}", margin_top="0.5rem", display="block"),
@@ -170,8 +179,8 @@ def _sent_join_request_card(request: SentJoinRequestView) -> rx.Component:
 
 def organize() -> rx.Component:
     return shell(
-        page_title("Organize"),
-        rx.image(src="/images/organize.jpg", width="100%", margin_bottom="0.5rem"),
+        page_title("Organise"),
+        rx.image(src="/images/organize.jpg", width="100%", margin_top="0.6rem", margin_bottom="0.5rem"),
         meta_text(
             "Bill from W. Dearden, printer, bookseller, stationer and "
             "bookbinder — Carlton Street, Nottingham, 1830s."

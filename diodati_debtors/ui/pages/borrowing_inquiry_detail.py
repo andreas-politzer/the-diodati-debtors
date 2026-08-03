@@ -72,7 +72,7 @@ def borrowing_inquiry_detail() -> rx.Component:
             ),
             meta_text("This inquiry is closed."),
         ),
-        rx.link("☞ Back to Organize", href="/organize", margin_top="1rem", display="block"),
+        rx.link("☞ Back to Organise", href="/organize", margin_top="1rem", display="block"),
         max_width="40rem",
     )
 

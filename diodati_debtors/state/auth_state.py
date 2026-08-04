@@ -73,7 +73,7 @@ class AuthState(rx.State):
             self.error_message = str(e)
             return
         self.current_user_id = str(result.id)
-        return rx.redirect("/dashboard")
+        return rx.redirect("/verify-email-pending")
 
     def check_auth_only(self):
         """Like check_auth, but WITHOUT the email verification check —

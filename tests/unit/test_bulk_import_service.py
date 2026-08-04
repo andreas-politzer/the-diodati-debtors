@@ -5,8 +5,8 @@ logic, no file I/O, no database.
 from __future__ import annotations
 
 from diodati_debtors.services import bulk_import_service
-
 from diodati_debtors.services import book_service
+from diodati_debtors.models.user import User
 
 
 def test_detects_exact_title_match_as_high_confidence():
@@ -81,11 +81,9 @@ def test_is_high_confidence_mapping_false_when_no_title_found():
 
     assert bulk_import_service.is_high_confidence_mapping(mapping) is False
 
-def _make_user(db, email: str) -> int:
-    from diodati_debtors.models.user import User
-
+def _make_user(db, email: str, *, verified: bool = True) -> int:
     with db() as session:
-        user = User(email=email, password_hash="x", display_name="User")
+        user = User(email=email, password_hash="x", display_name="User", email_verified=verified)
         session.add(user)
         session.commit()
         session.refresh(user)

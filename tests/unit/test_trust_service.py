@@ -12,9 +12,9 @@ from diodati_debtors.services import book_service, loan_service, trust_service
 REFERENCE_DATE = dt.date(2026, 7, 1)
 
 
-def _make_user(db, email: str) -> int:
+def _make_user(db, email: str, *, verified: bool = True) -> int:
     with db() as session:
-        user = User(email=email, password_hash="x", display_name="User")
+        user = User(email=email, password_hash="x", display_name="User", email_verified=verified)
         session.add(user)
         session.commit()
         session.refresh(user)

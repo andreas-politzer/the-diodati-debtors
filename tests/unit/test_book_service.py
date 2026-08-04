@@ -26,9 +26,9 @@ from diodati_debtors.core.exceptions import InvalidSearchQueryError
 from diodati_debtors.core.exceptions import SummaryGenerationError
 
 
-def _make_user(db, email: str) -> int:
+def _make_user(db, email: str, *, verified: bool = True) -> int:
     with db() as session:
-        user = User(email=email, password_hash="x", display_name="Owner")
+        user = User(email=email, password_hash="x", display_name="User", email_verified=verified)
         session.add(user)
         session.commit()
         session.refresh(user)

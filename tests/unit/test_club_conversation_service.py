@@ -13,9 +13,9 @@ from diodati_debtors.models.user import User
 from diodati_debtors.services import club_conversation_service, group_service, profile_service
 
 
-def _make_user(db, email: str) -> int:
+def _make_user(db, email: str, *, verified: bool = True) -> int:
     with db() as session:
-        user = User(email=email, password_hash="x", display_name="User")
+        user = User(email=email, password_hash="x", display_name="User", email_verified=verified)
         session.add(user)
         session.commit()
         session.refresh(user)

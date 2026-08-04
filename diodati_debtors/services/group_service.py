@@ -29,6 +29,7 @@ from ..core.exceptions import (
 )
 from ..core.normalize import blank_to_none
 from ..core.time import utcnow
+from . import authz_service
 from ..db.session import get_session
 from ..models.enums import GroupRole, RequestStatus
 from ..models.group import Group, GroupMembership
@@ -92,7 +93,10 @@ def create_group(founder_id: int, name: str) -> GroupResult:
     Raises:
         NotFoundError: if founder_id does not exist.
         InvalidGroupDataError: if name is blank.
+        EmailNotVerifiedError: if founder_id's email is not verified.
     """
+    authz_service.require_verified_email(founder_id)
+
     stripped_name = blank_to_none(name)
     if stripped_name is None:
         raise InvalidGroupDataError("Group name must not be blank.")

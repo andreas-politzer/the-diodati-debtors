@@ -36,7 +36,12 @@ _MIN_PASSWORD_LENGTH = 8
 
 
 def _to_result(user: User) -> UserResult:
-    return UserResult(id=user.id, email=user.email, display_name=user.display_name)
+    return UserResult(
+        id=user.id,
+        email=user.email,
+        display_name=user.display_name,
+        email_verified=user.email_verified,
+    )
 
 _TOKEN_VALID_HOURS = 24
 

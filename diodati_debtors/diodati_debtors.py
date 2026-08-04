@@ -11,6 +11,7 @@ from .ui.pages.login import login
 from .ui.pages.register import register
 from .ui.pages.clubs import clubs
 from .ui.pages.dashboard import dashboard
+from .ui.pages.verify_email import verify_email
 from .ui.pages.book_detail import book_detail
 from .ui.pages.add_book import add_book
 from .ui.pages.organize import organize
@@ -34,6 +35,7 @@ from .ui.pages.import_books import import_books
 from .ui.pages.profile import profile
 from .ui.pages.personal_messages import personal_messages
 from .ui.pages.borrowing_inquiry_detail import borrowing_inquiry_detail
+from .ui.pages.verify_email_pending import verify_email_pending
 from .state.borrowing_inquiry_detail_state import BorrowingInquiryDetailState
 from .state.club_conversation_detail_state import ClubConversationDetailState
 from .state.communication_state import CommunicationState
@@ -43,6 +45,7 @@ from .state.bulk_import_state import BulkImportState
 from .state.librarian_state import LibrarianState
 from .state.review_state import ReviewState
 from .state.post_state import PostState
+from .state.verify_email_state import VerifyEmailState
 from .state.auth_state import AuthState
 from .state.group_state import GroupState
 from .state.library_state import LibraryState
@@ -124,6 +127,11 @@ app.add_page(
         OrganizeState.load_pending_count,
         CommunicationState.load_hub,
     ],
+)
+app.add_page(
+    verify_email,
+    route="/verify-email/[token]",
+    on_load=VerifyEmailState.verify,
 )
 app.add_page(
     global_board,
@@ -223,4 +231,9 @@ app.add_page(
     profile,
     route="/profile",
     on_load=[AuthState.check_auth, ProfileState.load_profile],
+)
+app.add_page(
+    verify_email_pending,
+    route="/verify-email-pending",
+    on_load=AuthState.check_auth_only,
 )

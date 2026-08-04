@@ -38,10 +38,23 @@ class AuthState(rx.State):
         except (DiodatiError, ValueError):
             return ""
 
-    def check_auth(self):
-        """Shared guard for protected pages: use as an on_load handler."""
+    async def check_auth(self):
+        """Shared guard for protected pages: use as an on_load handler.
+        Also enforces the email verification gate — an unverified
+        user is redirected to /verify-email-pending regardless of
+        which protected page they tried to load (per the 04.08.
+        architecture decision, project vault: one central gate,
+        not scattered per-service checks)."""
         if not self.is_logged_in:
             return rx.redirect("/login")
+
+        try:
+            user = user_service.get_user(int(self.current_user_id))
+        except DiodatiError:
+            return rx.redirect("/login")
+
+        if not user.email_verified:
+            return rx.redirect("/verify-email-pending")
 
     def redirect_if_logged_in(self):
         """Guard for public-only pages (login, register)."""
@@ -61,6 +74,13 @@ class AuthState(rx.State):
             return
         self.current_user_id = str(result.id)
         return rx.redirect("/dashboard")
+
+    def check_auth_only(self):
+        """Like check_auth, but WITHOUT the email verification check —
+        used only by /verify-email-pending itself, to avoid an
+        infinite redirect loop."""
+        if not self.is_logged_in:
+            return rx.redirect("/login")
 
     def login(self, form_data: dict):
         self.error_message = ""

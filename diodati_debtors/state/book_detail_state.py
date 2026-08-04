@@ -202,6 +202,12 @@ class BookDetailState(rx.State):
         except DiodatiError as e:
             self.error_message = str(e)
             return
+        except Exception:
+            self.error_message = (
+                "Open Library seems to be unavailable right now. "
+                "You can still fill in the details manually, or try again shortly."
+            )
+            return
         self.form_title = metadata.title
         if metadata.author:
             self.form_author = metadata.author
@@ -217,6 +223,13 @@ class BookDetailState(rx.State):
             results = book_service.search_books(self.search_query)
         except DiodatiError as e:
             self.error_message = str(e)
+            self.search_results = []
+            return
+        except Exception:
+            self.error_message = (
+                "Open Library seems to be unavailable right now. "
+                "Please try again shortly."
+            )
             self.search_results = []
             return
         self.search_results = [

@@ -23,6 +23,7 @@ class UserResult:
     id: int
     email: str
     display_name: str
+    email_verified: bool = False
 
     def to_dict(self) -> dict:
         """Explicit serialization boundary — see loan_service.LoanResult
@@ -32,7 +33,12 @@ class UserResult:
 
 
 def _to_result(user: User) -> UserResult:
-    return UserResult(id=user.id, email=user.email, display_name=user.display_name)
+    return UserResult(
+        id=user.id,
+        email=user.email,
+        display_name=user.display_name,
+        email_verified=user.email_verified,
+    )
 
 
 def get_user(user_id: int) -> UserResult:

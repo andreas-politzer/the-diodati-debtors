@@ -31,6 +31,7 @@ from ..models.borrowing_inquiry import BorrowingInquiry, BorrowingInquiryMessage
 from ..models.enums import BorrowingVisibility, InquiryStatus, ProfileVisibility
 from ..models.user_profile import UserProfile
 from ..models.user import User
+from . import authz_service
 
 
 class InquiryNotAllowedError(Exception):
@@ -112,7 +113,10 @@ def start_inquiry(book_id: int, requester_id: int, message: str) -> InquiryResul
             PRIVATE.
         DuplicateOpenInquiryError: if the requester already has an
             OPEN inquiry for this exact book.
+        EmailNotVerifiedError: if requester_id's email is not verified.
     """
+    authz_service.require_verified_email(requester_id)
+
     with get_session() as session:
         book = session.get(Book, book_id)
         if book is None:

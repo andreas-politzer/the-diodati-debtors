@@ -25,6 +25,7 @@ from ..models.enums import ProfileVisibility
 from ..models.group import GroupMembership
 from ..models.user import User
 from ..models.user_profile import UserProfile
+from . import authz_service
 
 
 class ConversationNotAllowedError(Exception):
@@ -116,7 +117,10 @@ def send_message(initiator_id: int, recipient_id: int, message: str, group_id: i
         NotFoundError: if either user does not exist.
         ConversationNotAllowedError: if the two users share no club
             membership, or the recipient's profile is PRIVATE.
+        EmailNotVerifiedError: if initiator_id's email is not verified.
     """
+    authz_service.require_verified_email(initiator_id)
+
     with get_session() as session:
         initiator = session.get(User, initiator_id)
         if initiator is None:

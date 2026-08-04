@@ -156,7 +156,10 @@ def request_to_join(user_id: int, group_id: int) -> JoinRequestResult:
         AlreadyGroupMemberError: if the user is already a member.
         DuplicateJoinRequestError: if a PENDING request already exists
             for this user/group pair.
+        EmailNotVerifiedError: if user_id's email is not verified.
     """
+    authz_service.require_verified_email(user_id)
+
     with get_session() as session:
         user = session.get(User, user_id)
         if user is None:

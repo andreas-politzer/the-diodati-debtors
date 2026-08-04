@@ -40,6 +40,7 @@ from ..models.loan_request import LoanRequest
 from ..models.user import User
 from ..models.enums import ConditionRating
 from ..models.contact import Contact
+from . import authz_service
 
 DEFAULT_LOAN_PERIOD_DAYS = 14
 
@@ -315,7 +316,10 @@ def request_to_borrow(
         BookAlreadyOnLoanError: if the book already has an active loan.
         DuplicateLoanRequestError: if the requester already has a
             PENDING request for this book.
+        EmailNotVerifiedError: if requester_id's email is not verified.
     """
+    authz_service.require_verified_email(requester_id)
+
     with get_session() as session:
         book = session.get(Book, book_id)
         if book is None:

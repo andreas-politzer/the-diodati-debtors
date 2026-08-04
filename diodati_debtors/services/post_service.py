@@ -32,6 +32,7 @@ from ..models.enums import PostType
 from ..models.group import GroupMembership
 from ..models.post import Post
 from ..models.user import User
+from . import authz_service
 
 
 @dataclass(frozen=True)
@@ -112,11 +113,13 @@ def create_post(
         InvalidPostDataError: if content is blank.
         NotAuthorizedToPostError: if the author can't see the target
             club/book.
+        EmailNotVerifiedError: if author_id's email is not verified.
     """
+    authz_service.require_verified_email(author_id)
+
     stripped_content = blank_to_none(content)
     if stripped_content is None:
         raise InvalidPostDataError("Post content must not be blank.")
-
     with get_session() as session:
         author = session.get(User, author_id)
         if author is None:

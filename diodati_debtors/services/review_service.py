@@ -24,6 +24,7 @@ from ..models.book import Book
 from ..models.loan import Loan
 from ..models.review import Review
 from ..models.user import User
+from . import authz_service
 
 MIN_RATING = 1
 MAX_RATING = 5
@@ -75,7 +76,10 @@ def submit_review(book_id: int, user_id: int, rating: int, content: str) -> Revi
             ever borrowed the book.
         InvalidReviewDataError: if rating is out of range or content
             is blank.
+        EmailNotVerifiedError: if user_id's email is not verified.
     """
+    authz_service.require_verified_email(user_id)
+
     if not MIN_RATING <= rating <= MAX_RATING:
         raise InvalidReviewDataError(
             f"Rating must be between {MIN_RATING} and {MAX_RATING}."

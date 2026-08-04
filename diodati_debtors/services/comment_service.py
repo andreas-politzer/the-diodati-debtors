@@ -16,6 +16,7 @@ from ..db.session import get_session
 from ..models.comment import Comment
 from ..models.post import Post
 from ..models.user import User
+from . import authz_service
 
 
 @dataclass(frozen=True)
@@ -46,7 +47,10 @@ def create_comment(post_id: int, author_id: int, content: str) -> CommentResult:
     Raises:
         NotFoundError: if the post or author does not exist.
         InvalidPostDataError: if content is blank.
+        EmailNotVerifiedError: if author_id's email is not verified.
     """
+    authz_service.require_verified_email(author_id)
+
     stripped_content = blank_to_none(content)
     if stripped_content is None:
         raise InvalidPostDataError("Comment content must not be blank.")

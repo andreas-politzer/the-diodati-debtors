@@ -43,6 +43,7 @@ from ..models.user import User
 from ..core.exceptions import SummaryGenerationError
 from ..models.enums import SummarySource
 from .external.gemini_client import embed_text, generate_text
+from . import authz_service
 
 @dataclass(frozen=True)
 class BookMetadataResult:
@@ -122,7 +123,9 @@ def create_book(
     genre: str | None = None,
     borrowing_visibility: str | None = None,
 ) -> BookResult:
-    """Raises: NotFoundError, InvalidBookDataError."""
+    """Raises: NotFoundError, InvalidBookDataError, EmailNotVerifiedError."""
+    authz_service.require_verified_email(owner_id)
+
     stripped_title = blank_to_none(title)
     if stripped_title is None:
         raise InvalidBookDataError("Book title must not be blank.")
@@ -233,16 +236,17 @@ def update_book(
     borrowing_visibility: str | None = None,
 ) -> BookResult:
     """Update a book's metadata. Owner-only.
-
     Raises:
         NotFoundError: if the book does not exist.
         NotAuthorizedError: if owner_id does not own the book.
         InvalidBookDataError: if title is blank.
+        EmailNotVerifiedError: if owner_id's email is not verified.
     """
+    authz_service.require_verified_email(owner_id)
+
     stripped_title = blank_to_none(title)
     if stripped_title is None:
         raise InvalidBookDataError("Book title must not be blank.")
-
     with get_session() as session:
         book = session.get(Book, book_id)
         if book is None:

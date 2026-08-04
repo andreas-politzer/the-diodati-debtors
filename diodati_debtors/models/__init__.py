@@ -16,6 +16,7 @@ from .user_profile import UserProfile
 from .borrowing_inquiry import BorrowingInquiry, BorrowingInquiryMessage
 from .club_conversation import ClubConversation, ClubConversationMessage
 from .post_read import PostRead, CommentRead
+from .email_verification_token import EmailVerificationToken
 __all__ = [
     "User",
     "Group",

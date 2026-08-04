@@ -159,6 +159,10 @@ class SummaryGenerationError(BusinessRuleViolation):
 class InvalidContactDataError(BusinessRuleViolation):
     """Raised when a contact's name is blank."""
 
+class EmailNotVerifiedError(BusinessRuleViolation):
+    """Raised when an action requiring a verified email is attempted
+    by a user who hasn't confirmed their email address yet."""
+
 
 __all__ = [
     "DiodatiError",
@@ -188,4 +192,5 @@ __all__ = [
     "NotEligibleToReviewError",
     "SummaryGenerationError",
     "InvalidContactDataError",
+    "EmailNotVerifiedError",
 ]

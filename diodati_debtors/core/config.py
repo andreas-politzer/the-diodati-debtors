@@ -57,6 +57,9 @@ class Settings:
         "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
     )
     google_books_api_key: str = os.environ.get("GOOGLE_BOOKS_API_KEY", "")
+    brevo_api_key: str = os.environ.get("BREVO_API_KEY", "")
+    email_sender_address: str = os.environ.get("EMAIL_SENDER_ADDRESS", "")
+    app_base_url: str = os.environ.get("APP_BASE_URL", "http://localhost:3000")
 
     @property
     def sqlalchemy_database_uri(self) -> str:

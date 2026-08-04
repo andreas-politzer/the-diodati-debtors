@@ -30,6 +30,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     # Intentionally not unique — a display label, not an identity.
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Confirms email ownership only — NOT a trust or identity claim.
+    # Existing/seeded users are backfilled to True (see migration).
+    email_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False
     )

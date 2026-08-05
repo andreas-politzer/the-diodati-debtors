@@ -45,6 +45,7 @@ class ClubInvitationResult:
     inviter_id: int
     invited_email: str
     token: str
+    created_at: dt.datetime
     accepted_at: dt.datetime | None
 
     def to_dict(self) -> dict:
@@ -55,6 +56,7 @@ class ClubInvitationResult:
             "inviter_id": self.inviter_id,
             "invited_email": self.invited_email,
             "token": self.token,
+            "created_at": self.created_at,
             "accepted_at": self.accepted_at,
         }
 
@@ -67,6 +69,7 @@ def _to_result(invitation: ClubInvitation) -> ClubInvitationResult:
         inviter_id=invitation.inviter_id,
         invited_email=invitation.invited_email,
         token=invitation.token,
+        created_at=invitation.created_at,
         accepted_at=invitation.accepted_at,
     )
 
@@ -147,6 +150,19 @@ def get_invitation(token: str) -> ClubInvitationResult:
             raise NotFoundError("This invitation does not exist.")
         return _to_result(invitation)
 
+def list_pending_invitations_for_group(group_id: int) -> list[ClubInvitationResult]:
+    """All not-yet-accepted, not-yet-expired invitations for a club —
+    feeds My Bookmates' "Pending Invitations" section."""
+    with get_session() as session:
+        invitations = session.scalars(
+            select(ClubInvitation).where(
+                ClubInvitation.group_id == group_id,
+                ClubInvitation.accepted_at.is_(None),
+                ClubInvitation.expires_at >= utcnow(),
+            )
+        ).all()
+        return [_to_result(i) for i in invitations]
+
 def accept_invitation(token: str, accepting_user_id: int) -> None:
     """Accepts an invitation, creating the GroupMembership directly —
     no separate JoinRequest/founder-approval step, since being
@@ -195,4 +211,5 @@ __all__ = [
     "invite_to_club",
     "get_invitation",
     "accept_invitation",
+    "list_pending_invitations_for_group",
 ]

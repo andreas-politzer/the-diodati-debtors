@@ -36,6 +36,8 @@ from .ui.pages.profile import profile
 from .ui.pages.personal_messages import personal_messages
 from .ui.pages.borrowing_inquiry_detail import borrowing_inquiry_detail
 from .ui.pages.verify_email_pending import verify_email_pending
+from .ui.pages.join_invitation import join_invitation
+from .state.join_invitation_state import JoinInvitationState
 from .state.borrowing_inquiry_detail_state import BorrowingInquiryDetailState
 from .state.club_conversation_detail_state import ClubConversationDetailState
 from .state.communication_state import CommunicationState
@@ -54,6 +56,7 @@ from .state.contact_state import ContactState
 from .state.book_detail_state import BookDetailState
 from .state.member_library_state import MemberLibraryState
 from .state.loan_activity_state import LoanActivityState
+from .state.club_invitation_state import ClubInvitationState
 
 
 class State(rx.State):
@@ -216,7 +219,13 @@ app.add_page(
 app.add_page(
     members,
     route="/members",
-    on_load=[AuthState.check_auth, GroupState.load_my_groups, GroupState.load_members_overview, ContactState.load_contacts],
+    on_load=[
+        AuthState.check_auth,
+        GroupState.load_my_groups,
+        GroupState.load_members_overview,
+        ContactState.load_contacts,
+        ClubInvitationState.load_invitations,
+    ],
 )
 app.add_page(
     manual, route="/manual"
@@ -236,4 +245,9 @@ app.add_page(
     verify_email_pending,
     route="/verify-email-pending",
     on_load=AuthState.check_auth_only,
+)
+app.add_page(
+    join_invitation,
+    route="/join-invitation/[token]",
+    on_load=JoinInvitationState.load_invitation,
 )

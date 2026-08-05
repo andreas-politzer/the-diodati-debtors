@@ -3,15 +3,22 @@ architecture law: "People are people, mates are mates. A contact is
 just a mate who isn't a club member yet." Unified at the navigation/
 mental-model level only — group_service and contact_service remain
 completely separate underneath, per Struktur.md.
+
+Club invitations live here too (per the 04.08. UX decision, project
+vault) — inviting someone is a relationship between people, not a
+separate technical feature, and a dedicated Club Detail page would
+violate "one page, one question."
 """
 
 from __future__ import annotations
 
 import reflex as rx
 
+from ..components.button import primary_button
 from ..components.card import card
 from ..components.label import body_text, meta_text, page_title
 from ..components.shell import divider, shell
+from ...state.club_invitation_state import ClubInvitationState, InvitableGroupOption, PendingInvitationView
 from ...state.contact_state import ContactState, ContactView
 from ...state.group_state import ClubMembersView, GroupState, MemberEntry
 
@@ -59,6 +66,14 @@ def _contact_summary(contact: ContactView) -> rx.Component:
     )
 
 
+def _pending_invitation_card(invitation: PendingInvitationView) -> rx.Component:
+    return card(
+        body_text(invitation.group_name),
+        meta_text(invitation.invited_email),
+        meta_text("Pending"),
+        margin_bottom="0.5rem",
+    )
+
 def members() -> rx.Component:
     return shell(
         page_title("My Bookmates"),
@@ -92,6 +107,47 @@ def members() -> rx.Component:
             ),
             spacing="4",
             align="start",
+        ),
+        divider(),
+        rx.cond(
+            GroupState.has_groups,
+            rx.vstack(
+                page_title("Pending Invitations"),
+                rx.cond(
+                    ClubInvitationState.pending_invitations.length() > 0,
+                    rx.foreach(ClubInvitationState.pending_invitations, _pending_invitation_card),
+                    body_text("No pending invitations."),
+                ),
+                rx.cond(
+                    ClubInvitationState.error_message != "",
+                    meta_text(ClubInvitationState.error_message),
+                ),
+                rx.cond(
+                    ClubInvitationState.info_message != "",
+                    meta_text(ClubInvitationState.info_message),
+                ),
+                page_title("Invite Someone", font_size="1.2rem", margin_top="1rem"),
+                rx.form(
+                    rx.vstack(
+                        rx.input(
+                            placeholder="Email address",
+                            value=ClubInvitationState.invite_email_draft,
+                            on_change=ClubInvitationState.set_invite_email_draft,
+                        ),
+                        rx.select(
+                            ClubInvitationState.invitable_group_names,
+                            placeholder="Choose a club",
+                            on_change=ClubInvitationState.set_invite_group_name_draft,
+                        ),
+                        primary_button("Send Invitation", type="submit"),
+                        spacing="3",
+                    ),
+                    on_submit=ClubInvitationState.send_invitation,
+                ),
+                spacing="3",
+                width="100%",
+                margin_top="1rem",
+            ),
         ),
         divider(),
         rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),

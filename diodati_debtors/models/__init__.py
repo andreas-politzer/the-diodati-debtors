@@ -17,6 +17,9 @@ from .borrowing_inquiry import BorrowingInquiry, BorrowingInquiryMessage
 from .club_conversation import ClubConversation, ClubConversationMessage
 from .post_read import PostRead, CommentRead
 from .email_verification_token import EmailVerificationToken
+from .system_notification import SystemNotification
+from .club_invitation import ClubInvitation
+
 __all__ = [
     "User",
     "Group",
@@ -29,8 +32,14 @@ __all__ = [
     "Comment",
     "Review",
     "Contact",
-     "UserProfile",
-     "BorrowingInquiryMessage",
-     "ClubConversationMessage",
-     "CommentRead",
+    "UserProfile",
+    "BorrowingInquiry",
+    "BorrowingInquiryMessage",
+    "ClubConversation",
+    "ClubConversationMessage",
+    "PostRead",
+    "CommentRead",
+    "EmailVerificationToken",
+    "SystemNotification",
+    "ClubInvitation",
 ]

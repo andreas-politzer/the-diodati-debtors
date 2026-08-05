@@ -15,6 +15,7 @@ import secrets
 
 logger = logging.getLogger(__name__)
 
+from diodati_debtors.services import system_notification_service
 from sqlalchemy import select
 
 from ..core.config import settings
@@ -31,6 +32,7 @@ from ..models.email_verification_token import EmailVerificationToken
 from ..models.user import User
 from .external.email_client import send_email
 from .user_service import UserResult
+from . import system_notification_service
 
 _MIN_PASSWORD_LENGTH = 8
 
@@ -161,7 +163,10 @@ def verify_email(token: str) -> UserResult:
         user.email_verified = True
         verification_token.used_at = utcnow()
         session.flush()
-        return _to_result(user)
+        result = _to_result(user)
+
+    system_notification_service.send_welcome_notification(result.id)
+    return result
 
 
 def resend_verification_email(user_id: int) -> None:

@@ -64,7 +64,7 @@ class AuthState(rx.State):
     invitation_email: str = ""
 
     async def load_invitation_email(self):
-        invitation_token = self.router.page.params.get("invitation")
+        invitation_token = self.router.url.query_parameters.get("invitation")
         if not invitation_token:
             self.invitation_email = ""
             return
@@ -76,11 +76,17 @@ class AuthState(rx.State):
 
     def register(self, form_data: dict):
         self.error_message = ""
-        invitation_token = self.router.page.params.get("invitation")
+        password = form_data.get("password", "")
+        password_confirm = form_data.get("password_confirm", "")
+        if password != password_confirm:
+            self.error_message = "Passwords do not match."
+            return
+
+        invitation_token = self.router.url.query_parameters.get("invitation")
         try:
             result = auth_service.register(
                 email=form_data.get("email", ""),
-                password=form_data.get("password", ""),
+                password=password,
                 display_name=form_data.get("display_name", ""),
                 invitation_token=invitation_token,
             )
@@ -91,6 +97,19 @@ class AuthState(rx.State):
         if invitation_token:
             return rx.redirect("/dashboard")
         return rx.redirect("/verify-email-pending")
+
+    show_password: bool = False
+    password_draft: str = ""
+    password_confirm_draft: str = ""
+
+    def toggle_show_password(self):
+        self.show_password = not self.show_password
+
+    def set_password_draft(self, value: str):
+        self.password_draft = value
+
+    def set_password_confirm_draft(self, value: str):
+        self.password_confirm_draft = value
 
     def check_auth_only(self):
         """Like check_auth, but WITHOUT the email verification check —

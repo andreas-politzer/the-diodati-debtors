@@ -35,15 +35,8 @@ def verify_email_pending() -> rx.Component:
             on_click=VerifyEmailPendingState.resend,
             type="button",
         ),
-        rx.link(
-            "☞ Log out",
-            href="/",
-            on_click=AuthState.logout,
-            margin_top="1rem",
-            display="block",
-        ),
-        max_width="32rem",
-    )
+        max_width="32rem",)
+    
 
 
 __all__ = ["verify_email_pending"]

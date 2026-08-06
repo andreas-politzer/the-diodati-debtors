@@ -31,11 +31,31 @@ def register() -> rx.Component:
                     name="email",
                     type="email",
                     required=True,
-                    value=AuthState.invitation_email,
+                    default_value=AuthState.invitation_email,
                     read_only=AuthState.invitation_email != "",
                 ),
+                rx.hstack(
+                    rx.input(
+                        placeholder="Password",
+                        name="password",
+                        type=rx.cond(AuthState.show_password, "text", "password"),
+                        required=True,
+                        width="100%",
+                    ),
+                    rx.icon_button(
+                        rx.cond(AuthState.show_password, rx.icon("eye-off"), rx.icon("eye")),
+                        on_click=AuthState.toggle_show_password,
+                        type="button",
+                        variant="ghost",
+                    ),
+                    spacing="1",
+                    width="100%",
+                ),
                 rx.input(
-                    placeholder="Password", name="password", type="password", required=True
+                    placeholder="Confirm password",
+                    name="password_confirm",
+                    type=rx.cond(AuthState.show_password, "text", "password"),
+                    required=True,
                 ),
                 primary_button("Register", type="submit"),
                 spacing="3",

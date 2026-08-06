@@ -24,7 +24,7 @@ def verify_email() -> rx.Component:
                 body_text("Verifying..."),
             ),
         ),
-        rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
+        rx.link("☞ Enter your library", href="/dashboard", margin_top="1rem", display="block"),
         max_width="32rem",
     )
 

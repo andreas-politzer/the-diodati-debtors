@@ -14,7 +14,7 @@ from ..components.book_row import book_row
 from ..components.card import card
 from ..components.label import body_text, meta_text, page_title
 from ..components.shell import divider, shell
-from ..components.button import primary_button
+from ..components.button import primary_button, warning_button
 from ..tokens import Border, Color, Font, Radius, Space, Type
 from ...state.auth_state import AuthState
 from ...state.group_state import GroupState
@@ -23,6 +23,7 @@ from ...state.loan_activity_state import BorrowedLoanView, LoanActivityState
 from ...state.organize_state import OrganizeState
 from ...state.communication_state import CommunicationState
 from ...models.enums import BookGenre
+from ...state.system_notification_state import SystemNotificationState
 
 
 def _tab_button(label: str, tab_key: str) -> rx.Component:
@@ -179,6 +180,29 @@ def _lent_out_row(loan) -> rx.Component:
 
 def dashboard() -> rx.Component:
     return shell(
+        rx.cond(
+            SystemNotificationState.show_popup,
+            rx.box(
+                rx.hstack(
+                    rx.vstack(
+                        page_title(SystemNotificationState.unread_title, font_size="1.1rem"),
+                        body_text(SystemNotificationState.unread_content),
+                        spacing="2",
+                        align="start",
+                    ),
+                    warning_button(
+                        "✕", on_click=SystemNotificationState.dismiss, type="button"
+                    ),
+                    justify="between",
+                    align="start",
+                    width="100%",
+                ),
+                border=f"2px solid {Color.accent}",
+                padding="1rem",
+                border_radius="4px",
+                margin_bottom="1rem",
+            ),
+        ),
         rx.cond(
             LibraryState.active_tab == "common",
             page_title(

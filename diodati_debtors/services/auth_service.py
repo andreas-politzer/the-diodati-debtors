@@ -20,6 +20,7 @@ from sqlalchemy import select
 
 from ..core.config import settings
 from ..core.exceptions import (
+    DiodatiError,
     EmailAlreadyRegisteredError,
     InvalidCredentialsError,
     InvalidRegistrationDataError,
@@ -32,7 +33,7 @@ from ..models.email_verification_token import EmailVerificationToken
 from ..models.user import User
 from .external.email_client import send_email
 from .user_service import UserResult
-from . import system_notification_service
+from . import club_invitation_service, system_notification_service
 
 _MIN_PASSWORD_LENGTH = 8
 
@@ -77,8 +78,20 @@ def _create_and_send_verification_token(session, user: User) -> None:
         logger.exception("Failed to send verification email to %s", user.email)
 
 
-def register(email: str, password: str, display_name: str) -> UserResult:
+def register(
+    email: str,
+    password: str,
+    display_name: str,
+    invitation_token: str | None = None,
+) -> UserResult:
     """Register a new user.
+
+    If invitation_token is given and valid (matches this exact email,
+    unused, not expired), the account is marked email_verified=True
+    immediately — a Club Invitation link is an equally strong proof
+    of email ownership as our own verify-email token, per the 05.08.
+    architecture decision (project vault). No separate verification
+    email is sent in that case.
 
     Raises:
         InvalidRegistrationDataError: if any field is blank, the email
@@ -99,6 +112,18 @@ def register(email: str, password: str, display_name: str) -> UserResult:
             f"Password must be at least {_MIN_PASSWORD_LENGTH} characters."
         )
 
+    verified_via_invitation = False
+    if invitation_token:
+        try:
+            invitation = club_invitation_service.get_invitation(invitation_token)
+            if (
+                invitation.invited_email.lower() == normalized_email.lower()
+                and invitation.accepted_at is None
+            ):
+                verified_via_invitation = True
+        except DiodatiError:
+            pass
+
     with get_session() as session:
         existing = session.scalar(select(User).where(User.email == normalized_email))
         if existing is not None:
@@ -109,12 +134,23 @@ def register(email: str, password: str, display_name: str) -> UserResult:
             email=normalized_email,
             password_hash=hash_password(password),
             display_name=stripped_name,
-            email_verified=False,
+            email_verified=verified_via_invitation,
+            email_verified_at=utcnow() if verified_via_invitation else None,
+            email_verification_method="invitation" if verified_via_invitation else None,
         )
         session.add(user)
         session.flush()
-        _create_and_send_verification_token(session, user)
-        return _to_result(user)
+
+        if not verified_via_invitation:
+            _create_and_send_verification_token(session, user)
+
+        result = _to_result(user)
+
+    if verified_via_invitation:
+        club_invitation_service.accept_invitation(invitation_token, result.id)
+        system_notification_service.send_welcome_notification(result.id)
+
+    return result
 
 
 def login(email: str, password: str) -> UserResult:

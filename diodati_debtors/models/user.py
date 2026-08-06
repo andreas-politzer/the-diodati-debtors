@@ -33,6 +33,13 @@ class User(Base):
     # Confirms email ownership only — NOT a trust or identity claim.
     # Existing/seeded users are backfilled to True (see migration).
     email_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
+    email_verified_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    # "token" (normal verify-email flow) or "invitation" (a Club
+    # Invitation link is an equally strong proof of email ownership,
+    # per the 05.08. architecture decision, project vault — no
+    # separate verification step is needed after accepting a valid
+    # invitation).
+    email_verification_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False
     )

@@ -57,7 +57,7 @@ from .state.book_detail_state import BookDetailState
 from .state.member_library_state import MemberLibraryState
 from .state.loan_activity_state import LoanActivityState
 from .state.club_invitation_state import ClubInvitationState
-
+from .state.system_notification_state import SystemNotificationState
 
 class State(rx.State):
     """The app state."""
@@ -97,7 +97,11 @@ app.add_page(
 )
 app.add_page(style_preview, route="/style-preview")
 app.add_page(login, route="/login", on_load=AuthState.redirect_if_logged_in)
-app.add_page(register, route="/register", on_load=AuthState.redirect_if_logged_in)
+app.add_page(
+    register,
+    route="/register",
+    on_load=[AuthState.redirect_if_logged_in, AuthState.load_invitation_email],
+)
 app.add_page(
     imprint,
     route="/imprint",
@@ -129,6 +133,7 @@ app.add_page(
         LoanActivityState.load_lent_out_books,
         OrganizeState.load_pending_count,
         CommunicationState.load_hub,
+        SystemNotificationState.load_notifications,
     ],
 )
 app.add_page(

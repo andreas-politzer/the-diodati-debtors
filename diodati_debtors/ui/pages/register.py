@@ -26,7 +26,14 @@ def register() -> rx.Component:
         rx.form(
             rx.vstack(
                 rx.input(placeholder="Display name", name="display_name", required=True),
-                rx.input(placeholder="Email", name="email", type="email", required=True),
+                rx.input(
+                    placeholder="Email",
+                    name="email",
+                    type="email",
+                    required=True,
+                    value=AuthState.invitation_email,
+                    read_only=AuthState.invitation_email != "",
+                ),
                 rx.input(
                     placeholder="Password", name="password", type="password", required=True
                 ),

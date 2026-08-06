@@ -15,7 +15,7 @@ from __future__ import annotations
 import reflex as rx
 
 from ..core.exceptions import DiodatiError
-from ..services import auth_service, user_service
+from ..services import auth_service, club_invitation_service, user_service
 
 
 class AuthState(rx.State):
@@ -61,18 +61,35 @@ class AuthState(rx.State):
         if self.is_logged_in:
             return rx.redirect("/dashboard")
 
+    invitation_email: str = ""
+
+    async def load_invitation_email(self):
+        invitation_token = self.router.page.params.get("invitation")
+        if not invitation_token:
+            self.invitation_email = ""
+            return
+        try:
+            invitation = club_invitation_service.get_invitation(invitation_token)
+            self.invitation_email = invitation.invited_email
+        except DiodatiError:
+            self.invitation_email = ""
+
     def register(self, form_data: dict):
         self.error_message = ""
+        invitation_token = self.router.page.params.get("invitation")
         try:
             result = auth_service.register(
                 email=form_data.get("email", ""),
                 password=form_data.get("password", ""),
                 display_name=form_data.get("display_name", ""),
+                invitation_token=invitation_token,
             )
         except DiodatiError as e:
             self.error_message = str(e)
             return
         self.current_user_id = str(result.id)
+        if invitation_token:
+            return rx.redirect("/dashboard")
         return rx.redirect("/verify-email-pending")
 
     def check_auth_only(self):

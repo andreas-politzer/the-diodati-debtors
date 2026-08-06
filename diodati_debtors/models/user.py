@@ -40,6 +40,14 @@ class User(Base):
     # separate verification step is needed after accepting a valid
     # invitation).
     email_verification_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # "New for me starts here" — per the 06.08. architecture decision
+    # (project vault): a Baseline, not mass-marking historical posts as
+    # read. Set once, at account creation. Posts/comments created
+    # BEFORE this timestamp never count as unread for this user,
+    # regardless of whether they've actually been opened.
+    feed_baseline_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=False
+    )
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False
     )

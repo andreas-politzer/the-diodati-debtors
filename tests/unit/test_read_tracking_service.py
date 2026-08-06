@@ -11,9 +11,18 @@ from diodati_debtors.services import read_tracking_service
 from diodati_debtors.models.group import Group
 
 
+import datetime as dt
+
+
 def _make_user(db, email: str, *, verified: bool = True) -> int:
     with db() as session:
-        user = User(email=email, password_hash="x", display_name="User", email_verified=verified)
+        user = User(
+            email=email,
+            password_hash="x",
+            display_name="User",
+            email_verified=verified,
+            feed_baseline_at=dt.datetime(2000, 1, 1),
+        )
         session.add(user)
         session.commit()
         session.refresh(user)

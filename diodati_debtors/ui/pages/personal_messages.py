@@ -37,6 +37,7 @@ def _entry_row(entry: PersonalMessageEntry) -> rx.Component:
 def personal_messages() -> rx.Component:
     return shell(
         page_title("Personal Messages", margin_bottom="1rem"),
+        rx.link("☞ Back to Communication", href="/communication", margin_bottom="1rem", display="block"),
         rx.cond(
             PersonalMessagesState.error_message != "",
             rx.text(PersonalMessagesState.error_message, color="red"),
@@ -57,7 +58,6 @@ def personal_messages() -> rx.Component:
             overflow_y="auto",
             width="100%",
         ),
-        rx.link("☞ Back to Communication", href="/communication", margin_top="1rem", display="block"),
         max_width="40rem",
     )
 

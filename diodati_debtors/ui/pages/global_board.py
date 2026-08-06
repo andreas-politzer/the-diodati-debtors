@@ -66,6 +66,7 @@ def _post_card(post: PostView) -> rx.Component:
 def global_board() -> rx.Component:
     return shell(
         page_title("Global Board"),
+        rx.link("☞ Back to Communication", href="/communication", margin_bottom="0.5rem", display="block"),
         rx.cond(
             PostState.error_message != "",
             rx.text(
@@ -91,7 +92,6 @@ def global_board() -> rx.Component:
             rx.foreach(PostState.board_posts, _post_card),
             body_text("No posts yet."),
         ),
-        rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
         max_width="40rem",
     )
 

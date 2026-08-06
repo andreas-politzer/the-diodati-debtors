@@ -78,6 +78,7 @@ def _post_card(post: PostView) -> rx.Component:
 def club_feed() -> rx.Component:
     return shell(
         page_title("Club Feed"),
+        rx.link("☞ Back to Communication", href="/communication", margin_bottom="0.5rem", display="block"),
         meta_text(GroupState.current_group_name),
         rx.cond(
             PostState.error_message != "",
@@ -114,7 +115,6 @@ def club_feed() -> rx.Component:
                 ),
             ),
         ),
-        rx.link("☞ Back to library", href="/dashboard", margin_top="1rem", display="block"),
         max_width="40rem",
     )
 

@@ -144,7 +144,6 @@ def create_book(
         )
         session.add(book)
         session.flush()
-        _compute_and_store_embedding(session, book)
         return _to_result(book)
     
 def lookup_isbn(isbn: str) -> BookMetadataResult:
@@ -263,7 +262,7 @@ def update_book(
             book.borrowing_visibility = BorrowingVisibility(borrowing_visibility)
         session.flush()
         return _to_result(book)
-def _compute_and_store_embedding(session, book: Book) -> None:
+def compute_and_store_embedding(session, book: Book) -> None:
     """Always ensures a book has a usable embedding, even without a
     visible Book.summary. If summary exists, embed it directly. If
     not, generate a throwaway description via Gemini purely to embed
@@ -322,7 +321,7 @@ def set_summary(book_id: int, owner_id: int, summary: str) -> BookResult:
         book.summary = stripped
         book.summary_source = SummarySource.OWNER
         session.flush()
-        _compute_and_store_embedding(session, book)
+        compute_and_store_embedding(session, book)
         return _to_result(book)
        
 def fetch_summary_from_open_library(book_id: int, owner_id: int) -> BookResult:
@@ -368,7 +367,7 @@ def fetch_summary_from_open_library(book_id: int, owner_id: int) -> BookResult:
         book.summary = stripped
         book.summary_source = SummarySource.OPEN_LIBRARY
         session.flush()
-        _compute_and_store_embedding(session, book)
+        compute_and_store_embedding(session, book)
         return _to_result(book)
      
 def generate_summary_with_ai(book_id: int, owner_id: int) -> BookResult:
@@ -407,7 +406,7 @@ def generate_summary_with_ai(book_id: int, owner_id: int) -> BookResult:
         book.summary = stripped
         book.summary_source = SummarySource.AI_GENERATED
         session.flush()
-        _compute_and_store_embedding(session, book)
+        compute_and_store_embedding(session, book)
         return _to_result(book)
        
 def clear_summary(book_id: int, owner_id: int) -> BookResult:

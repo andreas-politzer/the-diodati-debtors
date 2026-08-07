@@ -130,7 +130,7 @@ def test_list_books_for_group_includes_all_members_books(db):
     member_book = book_service.create_book(owner_id=member_id, title="Member's Book")
     book_service.create_book(owner_id=outsider_id, title="Outsider's Book")
 
-    books = book_service.list_books_for_group(group_id)
+    books = book_service.list_books_for_group(founder_id, group_id)
 
     assert {b.id for b in books} == {founder_book.id, member_book.id}
 

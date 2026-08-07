@@ -164,7 +164,7 @@ class LibraryState(rx.State):
                     self.books = []
                     return
                 book_results = book_service.list_books_for_group(
-                    int(group_state.current_group_id), search=search, genre=genre
+                    int(auth_state.current_user_id), int(group_state.current_group_id), search=search, genre=genre
                 )
         except DiodatiError as e:
             self.error_message = str(e)

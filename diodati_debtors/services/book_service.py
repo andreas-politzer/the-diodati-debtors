@@ -516,12 +516,30 @@ def list_books_for_owner(
 
 
 def list_books_for_group(
-    group_id: int, search: str | None = None, genre: str | None = None
+    requester_id: int, group_id: int, search: str | None = None, genre: str | None = None
 ) -> list[BookResult]:
     """Every book owned by any member of the given group —
     "Common/Club Library".
+
+    Raises:
+        NotAuthorizedError: if requester_id is not a member of this
+            group — per the 07.08. security review, project vault.
     """
     with get_session() as session:
+        is_member = (
+            session.scalar(
+                select(GroupMembership).where(
+                    GroupMembership.user_id == requester_id,
+                    GroupMembership.group_id == group_id,
+                )
+            )
+            is not None
+        )
+        if not is_member:
+            raise NotAuthorizedError(
+                f"User {requester_id} is not a member of group {group_id}."
+            )
+
         query = (
             select(Book)
             .join(GroupMembership, GroupMembership.user_id == Book.owner_id)

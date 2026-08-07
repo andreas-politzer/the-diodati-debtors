@@ -78,7 +78,7 @@ class BorrowingInquiryDetailState(rx.State):
         )
 
         try:
-            self.book_title = book_service.get_book(result.book_id).title
+            self.book_title = book_service.get_book(current_user_id, result.book_id).title
         except DiodatiError:
             self.book_title = f"Book {result.book_id}"
 

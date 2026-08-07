@@ -104,8 +104,9 @@ class LoanActivityState(rx.State):
             self.borrowed_loans = []
             return
 
+        user_id = int(auth_state.current_user_id)
         try:
-            loans = loan_service.list_loans_for_borrower(int(auth_state.current_user_id))
+            loans = loan_service.list_loans_for_borrower(user_id)
         except DiodatiError as e:
             self.error_message = str(e)
             return
@@ -114,7 +115,7 @@ class LoanActivityState(rx.State):
         views: list[BorrowedLoanView] = []
         for loan in loans:
             try:
-                book = book_service.get_book(loan.book_id)
+                book = book_service.get_book(user_id, loan.book_id)
                 owner = user_service.get_user(book.owner_id)
                 book_title = book.title
                 owner_name = owner.display_name
@@ -147,8 +148,9 @@ class LoanActivityState(rx.State):
         if not auth_state.is_logged_in:
             self.lent_out_loans = []
             return
+        user_id = int(auth_state.current_user_id)
         try:
-            loans = loan_service.list_loans_for_owner(int(auth_state.current_user_id))
+            loans = loan_service.list_loans_for_owner(user_id)
         except DiodatiError as e:
             self.error_message = str(e)
             return
@@ -159,7 +161,7 @@ class LoanActivityState(rx.State):
             if not loan.is_active:
                 continue
             try:
-                book_title = book_service.get_book(loan.book_id).title
+                book_title = book_service.get_book(user_id, loan.book_id).title
             except DiodatiError:
                 book_title = f"Book {loan.book_id}"
 
@@ -199,8 +201,9 @@ class LoanActivityState(rx.State):
         if not auth_state.is_logged_in:
             self.lent_out_history = []
             return
+        user_id = int(auth_state.current_user_id)
         try:
-            loans = loan_service.list_loans_for_owner(int(auth_state.current_user_id))
+            loans = loan_service.list_loans_for_owner(user_id)
         except DiodatiError as e:
             self.error_message = str(e)
             return
@@ -210,7 +213,7 @@ class LoanActivityState(rx.State):
             if loan.is_active:
                 continue
             try:
-                book_title = book_service.get_book(loan.book_id).title
+                book_title = book_service.get_book(user_id, loan.book_id).title
             except DiodatiError:
                 book_title = f"Book {loan.book_id}"
 

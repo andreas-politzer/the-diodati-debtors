@@ -132,7 +132,7 @@ class OrganizeState(rx.State):
         for r in loan_reqs:
             try:
                 requester_name = user_service.get_user(r.requester_id).display_name
-                book_title = book_service.get_book(r.book_id).title
+                book_title = book_service.get_book(user_id, r.book_id).title
             except DiodatiError:
                 requester_name = f"User {r.requester_id}"
                 book_title = f"Book {r.book_id}"
@@ -166,7 +166,7 @@ class OrganizeState(rx.State):
             except DiodatiError:
                 other_name = f"User {other_id}"
             try:
-                book_title = book_service.get_book(inquiry.book_id).title
+                book_title = book_service.get_book(user_id, inquiry.book_id).title
             except DiodatiError:
                 book_title = f"Book {inquiry.book_id}"
             next_user_id = borrowing_inquiry_service.next_to_respond(inquiry)
@@ -324,10 +324,9 @@ class OrganizeState(rx.State):
         if not auth_state.is_logged_in:
             self.sent_requests = []
             return
+        user_id = int(auth_state.current_user_id)
         try:
-            requests = loan_service.list_loan_requests_for_requester(
-                int(auth_state.current_user_id)
-            )
+            requests = loan_service.list_loan_requests_for_requester(user_id)
         except DiodatiError as e:
             self.error_message = str(e)
             return
@@ -335,7 +334,7 @@ class OrganizeState(rx.State):
         views: list[SentLoanRequestView] = []
         for r in requests:
             try:
-                book_title = book_service.get_book(r.book_id).title
+                book_title = book_service.get_book(user_id, r.book_id).title
             except DiodatiError:
                 book_title = f"Book {r.book_id}"
             views.append(

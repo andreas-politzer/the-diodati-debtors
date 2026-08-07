@@ -94,7 +94,7 @@ def test_create_book_rejects_unknown_owner(db):
 
 def test_get_book_raises_when_missing(db):
     with pytest.raises(NotFoundError):
-        book_service.get_book(999)
+        book_service.get_book(1, 999)
 
 
 def test_list_books_returns_all_in_creation_order(db):
@@ -171,7 +171,7 @@ def test_delete_book_succeeds_when_no_loan_history(db):
     book_service.delete_book(book.id, owner_id=owner_id)
 
     with pytest.raises(NotFoundError):
-        book_service.get_book(book.id)
+        book_service.get_book(owner_id, book.id)
 
 
 def test_delete_book_rejects_non_owner(db):

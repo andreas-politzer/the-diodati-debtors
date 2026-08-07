@@ -33,6 +33,7 @@ from ..models.group import GroupMembership
 from ..models.post import Post
 from ..models.user import User
 from . import authz_service
+from . import authz_service
 
 
 @dataclass(frozen=True)
@@ -71,32 +72,6 @@ def _is_group_member(session, user_id: int, group_id: int) -> bool:
         )
         is not None
     )
-
-
-def _can_view_book(session, user_id: int, book: Book) -> bool:
-    """Same visibility rule as the rest of the app: the book's owner,
-    or anyone in a group the owner belongs to.
-    """
-    if book.owner_id == user_id:
-        return True
-    owner_group_ids = {
-        m.group_id
-        for m in session.scalars(
-            select(GroupMembership).where(GroupMembership.user_id == book.owner_id)
-        ).all()
-    }
-    if not owner_group_ids:
-        return False
-    return (
-        session.scalar(
-            select(GroupMembership).where(
-                GroupMembership.user_id == user_id,
-                GroupMembership.group_id.in_(owner_group_ids),
-            )
-        )
-        is not None
-    )
-
 
 def create_post(
     author_id: int,
@@ -140,7 +115,7 @@ def create_post(
             book = session.get(Book, book_id)
             if book is None:
                 raise NotFoundError(f"Book {book_id} does not exist.")
-            if not _can_view_book(session, author_id, book):
+            if not authz_service.can_view_book(session, author_id, book):
                 raise NotAuthorizedToPostError(
                     f"User {author_id} cannot view book {book_id}."
                 )

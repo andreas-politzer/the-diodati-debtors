@@ -29,7 +29,8 @@ def manual() -> rx.Component:
             "and loans."
         ),
         body_text(
-            "Register an account and log in — your Personal Library "
+            "Register an account, then confirm your email address via "
+            "the link we send you — after that, your Personal Library "
             "works right away, with no club required."
         ),
         rx.box(clear="both"),
@@ -37,7 +38,18 @@ def manual() -> rx.Component:
         page_title("Add a Book", font_size="1.3rem"),
         body_text(
             "Add a book via ISBN lookup, title search (with cover "
-            "previews), or entirely by hand."
+            "previews), or entirely by hand. Set its Borrowing "
+            "Visibility to control whether it's only visible within "
+            "your club, or open to public borrowing enquiries from "
+            "anyone on the platform."
+        ),
+        divider(),
+        page_title("Import Books", font_size="1.3rem"),
+        body_text(
+            "Already have a spreadsheet of your books? Upload a CSV, "
+            "XLSX, or ODS file — the columns are detected for you, "
+            "likely duplicates are flagged for review, and you'll see "
+            "exactly what was added or skipped once it's done."
         ),
         divider(),
         page_title("Clubs", font_size="1.3rem"),
@@ -61,28 +73,49 @@ def manual() -> rx.Component:
             "member — who you lend to and manage directly, with no "
             "request needed."
         ),
+        body_text(
+            "Invite a friend by email — they'll get a link straight "
+            "into your club, with their account already confirmed, no "
+            "separate verification step needed."
+        ),
         divider(),
-        page_title("Organize", font_size="1.3rem"),
+        page_title("My Profile", font_size="1.3rem"),
+        body_text(
+            "Entirely optional: a display name, location, bio, and "
+            "favourite genre, with one visibility setting for the "
+            "whole thing — private, visible to fellow club members, or "
+            "public."
+        ),
+        divider(),
+        page_title("Organise", font_size="1.3rem"),
         body_text(
             "\"What needs my attention?\" — pending club-join and "
-            "loan requests to decide on, plus Your Requests: what "
-            "you've sent, and the status of each."
+            "loan requests to decide on, open Borrowing Inquiries "
+            "waiting on your reply, plus Your Requests: what you've "
+            "sent, and the status of each."
         ),
         divider(),
         page_title("Communication", font_size="1.3rem"),
         body_text(
-            "Club Feed and Global Board for posts and discussion. "
-            "Every book also has its own Discussion, Reviews, and "
-            "Synopsis (written manually, imported from Open Library, "
-            "or AI-generated)."
+            "A hub with three doors: Personal Messages (a WhatsApp-"
+            "style overview of your ongoing conversations with fellow "
+            "club members), Club Feed, and Global Board. Every book "
+            "also has its own Discussion, Reviews, and Synopsis "
+            "(written manually, imported from Open Library, or "
+            "AI-generated)."
         ),
         divider(),
         page_title("Ask the Librarian", font_size="1.3rem"),
         body_text(
             "Describe what you're looking for in your own words — a "
-            "mood, a theme, a half-remembered detail. The librarian "
-            "searches your library's meaning, not just its words, and "
-            "will suggest something from beyond it if nothing fits."
+            "mood, a theme, a half-remembered detail, or a specific "
+            "title or author. The librarian checks your library's "
+            "records first, then its meaning, and will suggest "
+            "something from beyond it if nothing fits — verified "
+            "against real sources before it's ever shown. If a match "
+            "exists in a club you haven't joined, and its owner has "
+            "opened it up to public enquiries, you can request to "
+            "borrow it directly, no membership required."
         ),
         divider(),
         page_title("The Dashboard Tabs", font_size="1.3rem"),
@@ -109,7 +142,9 @@ def manual() -> rx.Component:
         body_text(
             "Reliability and Book Care are shown wherever they help you "
             "decide who to lend to — always as plain words (Excellent, "
-            "Good, ...), never as scores or rankings."
+            "Good, ...), never as scores or rankings. Only visible in "
+            "contexts where they're actually relevant, such as a "
+            "shared club."
         ),
         divider(),
         meta_text(

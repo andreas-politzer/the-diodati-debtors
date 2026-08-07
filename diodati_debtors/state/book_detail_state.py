@@ -117,8 +117,11 @@ class BookDetailState(rx.State):
             int(auth_state.current_user_id) if auth_state.is_logged_in else None
         )
 
+        if current_user_id is None:
+            self.error_message = "You must be logged in to view this book."
+            return
         try:
-            book = book_service.get_book(bid)
+            book = book_service.get_book(current_user_id, bid)
             owner = user_service.get_user(book.owner_id)
             loans = loan_service.list_loans_for_book(bid)
         except DiodatiError as e:

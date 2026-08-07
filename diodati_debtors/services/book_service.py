@@ -475,11 +475,21 @@ def delete_book(book_id: int, owner_id: int) -> None:
         session.flush()
 
 
-def get_book(book_id: int) -> BookResult:
+def get_book(requester_id: int, book_id: int) -> BookResult:
+    """Raises:
+        NotFoundError: if the book does not exist.
+        NotAuthorizedError: if requester_id cannot view this book
+            (not the owner, and shares no club with the owner) — per
+            the 07.08. security review, project vault.
+    """
     with get_session() as session:
         book = session.get(Book, book_id)
         if book is None:
             raise NotFoundError(f"Book {book_id} does not exist.")
+        if not authz_service.can_view_book(session, requester_id, book):
+            raise NotAuthorizedError(
+                f"User {requester_id} cannot view book {book_id}."
+            )
         return _to_result(book)
 
 

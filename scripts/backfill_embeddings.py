@@ -1,27 +1,21 @@
-"""One-off script: compute embeddings for every existing book that
-doesn't have one yet (books created before the embedding feature
-existed). Safe to re-run — skips books that already have an
-embedding.
+"""Cron entry point: compute embeddings for every book that doesn't
+have one yet. Per the 07.08. architecture decision (project vault):
+embeddings are search infrastructure, maintained periodically via a
+Railway Cron Job — not synchronously during book writes. Safe to
+re-run repeatedly (idempotent).
 """
 
 from __future__ import annotations
 
-from sqlalchemy import select
-
-from diodati_debtors.db.session import get_session
-from diodati_debtors.models.book import Book
-from diodati_debtors.services.book_service import _compute_and_store_embedding
+from diodati_debtors.services import librarian_maintenance_service
 
 
-def main():
-    with get_session() as session:
-        books = session.scalars(select(Book).where(Book.embedding.is_(None))).all()
-        print(f"Found {len(books)} books without an embedding.")
-        for book in books:
-            print(f"Computing embedding for: {book.title}")
-            _compute_and_store_embedding(session, book)
-        session.commit()
-        print("Done.")
+def main() -> None:
+    report = librarian_maintenance_service.backfill_missing_embeddings()
+    print(
+        f"Embedding backfill complete: {report.succeeded}/{report.total_checked} "
+        f"succeeded, {report.failed} failed."
+    )
 
 
 if __name__ == "__main__":
